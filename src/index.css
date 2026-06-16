@@ -1,0 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;750&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Space Grotesk", sans-serif;
+  
+  --color-brand-red: #FF3C3C;
+  --color-brand-cyan: #66FCF1;
+  --color-bg-darkest: #0A0A0B;
+  --color-bg-panel: #0D0D0F;
+  --color-border-subtle: #1F1F23;
+  --color-border-card: #2A2A2E;
+}
+
+/* Fallback & Custom class declarations matching simulated UI */
+.tuning-card {
+  background: linear-gradient(145deg, #161618 0%, #0D0D0E 100%);
+  border: 1px solid #2A2A2E;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.6);
+}
+
+.active-glow {
+  box-shadow: 0 0 15px rgba(255, 60, 60, 0.35);
+  border-color: #FF3C3C !important;
+}
+
+.data-val {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  color: #66FCF1;
+}
+
+.micro-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #6B6B70;
+  font-weight: 600;
+}
+
+/* Custom telemetry scrollbar adjustments */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0B;
+}
+::-webkit-scrollbar-thumb {
+  background: #2A2A2E;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF3C3C;
+}
+
+/* Radial dot background overlay */
+.dot-grid {
+  background-image: radial-gradient(#2A2A2E 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}

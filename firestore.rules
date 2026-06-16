@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getRole() {
+      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? 
+        getUserDoc().data.get('role', 'none') : 'none';
+    }
+
+    function isAppAdmin() {
+      return isAuth() && (
+        (request.auth.token.get('email', '').matches('(?i)jaminecraft844@gmail\\.com')) ||
+        (getRole() == 'admin')
+      );
+    }
+
+    match /users/{userId} {
+      allow read: if isAuth() || userId == "default_user";
+      allow create, update: if isOwner(userId) || isAppAdmin();
+      allow delete: if isAppAdmin();
+      
+      match /setups/{docId} {
+        allow read: if isAuth() || userId == "default_user";
+        allow create: if isAuth() && (
+          request.resource.data.get('ownerId', 'default_user') == request.auth.uid ||
+          request.resource.data.get('ownerId', 'default_user') == 'default_user' ||
+          isAppAdmin()
+        );
+        allow update: if isAuth() && (
+          resource.data.get('ownerId', 'default_user') == request.auth.uid ||
+          resource.data.get('ownerId', 'default_user') == 'default_user' ||
+          isAppAdmin()
+        );
+        allow delete: if isAuth() && (
+          resource.data.get('ownerId', 'default_user') == request.auth.uid ||
+          resource.data.get('ownerId', 'default_user') == 'default_user' ||
+          isAppAdmin()
+        );
+      }
+      match /templates/{docId} {
+        allow read: if isAuth() || userId == "default_user";
+        allow create: if isAuth() && (
+          request.resource.data.get('ownerId', 'default_user') == request.auth.uid ||
+          request.resource.data.get('ownerId', 'default_user') == 'default_user' ||
+          isAppAdmin()
+        );
+        allow update: if isAuth() && (
+          resource.data.get('ownerId', 'default_user') == request.auth.uid ||
+          resource.data.get('ownerId', 'default_user') == 'default_user' ||
+          isAppAdmin()
+        );
+        allow delete: if isAuth() && (
+          resource.data.get('ownerId', 'default_user') == request.auth.uid ||
+          resource.data.get('ownerId', 'default_user') == 'default_user' ||
+          isAppAdmin()
+        );
+      }
+    }
+
+    match /news/{docId} {
+      allow read: if isAuth();
+      allow write: if isAppAdmin();
+    }
+
+    match /events/{docId} {
+      allow read: if isAuth();
+      allow write: if isAppAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if isAuth();
+      allow write: if isAppAdmin();
+    }
+    
+    match /attendance/{docId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && (request.resource.data.userId == request.auth.uid || isAppAdmin());
+      allow delete: if isAuth() && (resource.data.userId == request.auth.uid || isAppAdmin());
+    }
+  }
+}
+
+
+

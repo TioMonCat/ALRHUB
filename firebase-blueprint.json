@@ -1,0 +1,136 @@
+{
+  "entities": {
+    "SetupTemplate": {
+      "title": "SetupTemplate",
+      "description": "Configuration template outlining sections and adjustable parameters.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "sections": { "type": "array" },
+        "isCustom": { "type": "boolean" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "title", "description", "sections", "ownerId"]
+    },
+    "CarSetup": {
+      "title": "CarSetup",
+      "description": "Custom setup settings for a specific car, simulator, and track.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "game": { "type": "string" },
+        "car": { "type": "string" },
+        "track": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "templateId": { "type": "string" },
+        "values": { "type": "object" },
+        "isFavorite": { "type": "boolean" },
+        "lapTime": { "type": "string" },
+        "weather": { "type": "string" },
+        "setupType": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "title", "game", "car", "track", "createdAt", "updatedAt", "templateId", "values", "ownerId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "The custom profile details, racing numbers, and membership status of a team simracer.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "piloto", "postulante"] },
+        "carPreference": { "type": "string" },
+        "raceNumber": { "type": "string" },
+        "iracingId": { "type": "string" },
+        "experience": { "type": "string" },
+        "message": { "type": "string" },
+        "appliedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["pendiente", "aprobado", "rechazado"] }
+      },
+      "required": ["uid", "displayName", "email", "role"]
+    },
+    "NewsBulletin": {
+      "title": "NewsBulletin",
+      "description": "Team announcement or briefing posted by administrators for the community.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string" },
+        "author": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "category": { "type": "string" },
+        "pinnable": { "type": "boolean" }
+      },
+      "required": ["id", "title", "content", "date", "author"]
+    },
+    "ChampionshipEvent": {
+      "title": "ChampionshipEvent",
+      "description": "A scheduled race event or private team test session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "track": { "type": "string" },
+        "car": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["scheduled", "completed"] },
+        "results": { "type": "array" }
+      },
+      "required": ["id", "title", "track", "car", "date", "type", "status"]
+    },
+    "EventAttendance": {
+      "title": "EventAttendance",
+      "description": "Roster pilot reservation RSVP response for a specific event.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "eventId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "status": { "type": "string", "enum": ["yes", "no", "maybe"] },
+        "comments": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "eventId", "userId", "userName", "status", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with roles and telemetry status."
+    },
+    "users/{userId}/setups/{setupId}": {
+      "schema": "CarSetup",
+      "description": "The setup sheets registered by a specific simracer."
+    },
+    "users/{userId}/templates/{templateId}": {
+      "schema": "SetupTemplate",
+      "description": "The custom setup templates designed or cloned by a specific simracer."
+    },
+    "news/{newsId}": {
+      "schema": "NewsBulletin",
+      "description": "Global briefings and race articles published by admins."
+    },
+    "events/{eventId}": {
+      "schema": "ChampionshipEvent",
+      "description": "Scheduled series races, qualifying rounds, or training."
+    },
+    "attendance/{attendanceId}": {
+      "schema": "EventAttendance",
+      "description": "Pilot RSVP schedules for championship events."
+    }
+  }
+}
