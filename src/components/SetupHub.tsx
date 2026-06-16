@@ -6,8 +6,8 @@ import { motion, AnimatePresence } from "motion/react";
 
 const getCarImage = (carName: string) => {
   const c = carName.toUpperCase();
-  if (c.includes("GT3")) return "/img/GT3.JPG";
-  if (c.includes("LMP2") || c.includes("ORECA")) return "/img/LMP2.JPG";
+  if (c.includes("GT3")) return "img/GT3.JPG";
+  if (c.includes("LMP2") || c.includes("ORECA")) return "img/LMP2.JPG";
   return null;
 };
 

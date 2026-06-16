@@ -8,7 +8,7 @@ interface ALRLogoProps {
 export default function ALRLogo({ className = "", size = 200 }: ALRLogoProps) {
   return (
     <img
-      src="/img/LogoEquipo.png"
+      src="img/LogoEquipo.png"
       alt="ALR Logo"
       width={size}
       className={`select-none object-contain ${className}`}
