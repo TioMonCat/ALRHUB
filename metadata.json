@@ -1,5 +1,5 @@
 {
-  "name": "Sim Racing Setups Manager",
+  "name": "ALR Hub",
   "description": "Un gestor de reglajes de simulación (Sim Racing) totalmente personalizable con plantillas dinámicas, análisis en tiempo real y asistencia de ingeniería por IA.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
