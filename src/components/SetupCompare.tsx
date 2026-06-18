@@ -27,11 +27,18 @@ export default function SetupCompare({
 
   // Helper to extract value safely matching template fields
   const getValue = (setup: CarSetup, fieldId: string, defVal?: string) => {
-    return setup.values[fieldId] !== undefined ? setup.values[fieldId] : (defVal || "--");
+    const val = setup.values[fieldId] !== undefined ? setup.values[fieldId] : (defVal || "--");
+    if (fieldId.toLowerCase().includes("camber")) {
+      const num = parseFloat(val);
+      if (!isNaN(num)) {
+        return num.toFixed(1);
+      }
+    }
+    return val;
   };
 
   // Compare function to compute variance
-  const getVarianceInfo = (valA: string, valB: string) => {
+  const getVarianceInfo = (valA: string, valB: string, fieldId: string) => {
     const numA = parseFloat(valA);
     const numB = parseFloat(valB);
 
@@ -41,14 +48,28 @@ export default function SetupCompare({
     }
 
     const diff = numB - numA;
-    if (diff === 0) {
+    // Handle tiny float precision issues (like -0.000000001 or 0)
+    if (Math.abs(diff) < 0.0001) {
       return { differs: false, text: "=", color: "text-stone-600 font-mono" };
     }
 
     const sign = diff > 0 ? "+" : "";
+    const isCamber = fieldId.toLowerCase().includes("camber");
+    
+    let textDiff = "";
+    if (isCamber) {
+      textDiff = diff.toFixed(1);
+      // If rounding made it +0.0 or -0.0, treat as equal
+      if (textDiff === "0.0" || textDiff === "-0.0") {
+        return { differs: false, text: "=", color: "text-stone-600 font-mono" };
+      }
+    } else {
+      textDiff = parseFloat(diff.toFixed(4)).toString();
+    }
+
     return {
       differs: true,
-      text: `${sign}${diff}`,
+      text: `${sign}${textDiff}`,
       color: diff > 0 ? "text-lime-400 font-medium" : "text-red-400 font-medium"
     };
   };
@@ -158,7 +179,7 @@ export default function SetupCompare({
                       {fields.map((field) => {
                         const valA = getValue(setupA, field.id, field.defaultValue);
                         const valB = getValue(setupB, field.id, field.defaultValue);
-                        const variance = getVarianceInfo(valA, valB);
+                        const variance = getVarianceInfo(valA, valB, field.id);
 
                         return (
                           <tr
