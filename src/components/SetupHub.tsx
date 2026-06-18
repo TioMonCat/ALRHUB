@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { CarSetup, SetupTemplate } from "../types";
 import { POPULAR_GAMES, POPULAR_TRACKS, DEFAULT_TEMPLATES } from "../presets";
-import { Trash2, Star, Plus, FileSpreadsheet, Download, Upload, Search, Filter, Sliders, Layers, RefreshCw, Layers3, Flame, Clock, CloudRain, Sun, CloudDrizzle, Check } from "lucide-react";
+import { Trash2, Star, Plus, FileSpreadsheet, Download, Upload, Search, Filter, Sliders, Layers, RefreshCw, Layers3, Flame, Clock, CloudRain, Sun, CloudDrizzle, Check, File } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { parseIni, mapIniToSetupValues } from "./ALRIniParser";
 
 const getCarImage = (carName: string) => {
   const c = carName.toUpperCase();
@@ -17,7 +18,7 @@ interface SetupHubProps {
   onSelectSetup: (id: string) => void;
   onDeleteSetup: (id: string) => void;
   onToggleFavorite: (id: string) => void;
-  onCreateSetup: (title: string, game: string, car: string, track: string, templateId: string, setupType?: string) => void;
+  onCreateSetup: (title: string, game: string, car: string, track: string, templateId: string, setupType?: string, initialValues?: Record<string, string>) => void;
   onImportBackup: (importedSetups: CarSetup[], importedTemplates: SetupTemplate[]) => void;
   onCompareSetups: (idA: string, idB: string) => void;
   readOnly?: boolean;
@@ -60,6 +61,11 @@ export default function SetupHub({
   const [newTrack, setNewTrack] = useState(POPULAR_TRACKS[0] || "Le Mans (Circuit de la Sarthe)");
   const [newTemplateId, setNewTemplateId] = useState("");
   const [setupType, setSetupType] = useState("Libre");
+
+  // .ini setup import states
+  const [importedRawValues, setImportedRawValues] = useState<Record<string, Record<string, string>> | null>(null);
+  const [uploadedIniFileName, setUploadedIniFileName] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
 
   // Template Admin States (For editing existing templates and creating new base templates)
   const [editingTemplate, setEditingTemplate] = useState<SetupTemplate | null>(null);
@@ -104,6 +110,7 @@ export default function SetupHub({
   // Compare mode states
   const [compareSelection, setCompareSelection] = useState<string[]>([]);
   const [isCompareMode, setIsCompareMode] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   // Unique list of games and tracks for filtration
   const availableGames = ["Todos", ...Array.from(new Set(setups.map(s => s.game)))];
@@ -161,25 +168,101 @@ export default function SetupHub({
     reader.readAsText(file);
   };
 
+  const handleIniFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadedIniFileName(file.name);
+    setImportNotice(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = parseIni(text);
+
+        if (Object.keys(parsed.rawValues).length === 0) {
+          setImportNotice("⚠️ El archivo no parece contener secciones válidas de un archivo de configuración .ini.");
+          return;
+        }
+
+        setImportedRawValues(parsed.rawValues);
+
+        // Auto-detect fields
+        if (parsed.metadata.car) {
+          setNewCar(parsed.metadata.car);
+        }
+
+        // Auto-detect template and game from the ini model key
+        const carUpper = (parsed.metadata.car || "").toUpperCase();
+        
+        // Always Assetto Corsa by default if importing a .ini configuration file
+        setNewGame("Assetto Corsa");
+
+        let detectedTemplate = "assetto-corsa-gt3";
+        if (carUpper.includes("LMP2") || carUpper.includes("ORECA") || carUpper.includes("LMP") || carUpper.includes("07")) {
+          detectedTemplate = "assetto-corsa-lmp2";
+          setSetupType("LFM");
+        }
+        setNewTemplateId(detectedTemplate);
+
+        // Set an elegant auto-imported title
+        const cleanCarName = parsed.metadata.car 
+          ? parsed.metadata.car.replace(/_/g, " ").toUpperCase() 
+          : "Coche Importado";
+        setNewTitle(`Reglaje Importado - ${cleanCarName}`);
+
+        setImportNotice(`✅ ¡Configuración .ini cargada! Se leyeron los parámetros y se fijó el coche como "${parsed.metadata.car || 'desconocido'}". Completa de forma manual el resto de campos.`);
+      } catch (err) {
+        console.error("Error al leer el archivo .ini", err);
+        setImportNotice("❌ Error al leer o analizar el archivo .ini.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle || !newCar) {
       return;
     }
 
-    onCreateSetup(newTitle, newGame, newCar, newTrack, newTemplateId, setupType);
+    let finalValues: Record<string, string> | undefined = undefined;
+    if (importedRawValues) {
+      const selectedTemplate = templates.find(t => t.id === newTemplateId);
+      if (selectedTemplate) {
+        finalValues = mapIniToSetupValues(importedRawValues, selectedTemplate);
+      }
+    }
+
+    onCreateSetup(newTitle, newGame, newCar, newTrack, newTemplateId, setupType, finalValues);
     setIsCreating(false);
     // Reset inputs
     setNewTitle("");
     setNewCar("");
+    setImportedRawValues(null);
+    setUploadedIniFileName(null);
+    setImportNotice(null);
   };
 
   const toggleCompareSelect = (id: string) => {
+    setCompareError(null);
     if (compareSelection.includes(id)) {
       setCompareSelection(compareSelection.filter(item => item !== id));
     } else {
+      const clickedSetup = setups.find(s => s.id === id);
+      if (!clickedSetup) return;
+
+      if (compareSelection.length > 0) {
+        // Find existing setups in comparison
+        const referenceSetup = setups.find(s => s.id === compareSelection[0]);
+        if (referenceSetup && referenceSetup.game !== clickedSetup.game) {
+          setCompareError(`Solo puedes comparar setups del mismo simulador. El primer setup seleccionado es de "${referenceSetup.game}", y estás intentando seleccionar uno de "${clickedSetup.game}".`);
+          return;
+        }
+      }
+
       if (compareSelection.length >= 2) {
-        // limit to 2
         setCompareSelection([compareSelection[1], id]);
       } else {
         setCompareSelection([...compareSelection, id]);
@@ -221,7 +304,24 @@ export default function SetupHub({
       )}
 
       {/* Upper Control Console */}
-      <div className="flex justify-end mb-4" id="control-console">
+      <div className="flex justify-end gap-3 mb-4" id="control-console">
+        <button
+          onClick={() => {
+            setIsCompareMode(!isCompareMode);
+            setCompareSelection([]);
+            setCompareError(null);
+          }}
+          className={`px-4 py-2 font-mono font-extrabold text-2xs sm:text-xs rounded transition-all flex items-center gap-1.5 shadow-sm uppercase tracking-wider cursor-pointer ${
+            isCompareMode
+              ? "bg-[#66FCF1] hover:bg-cyan-300 text-black shadow-cyan-300/10 border border-[#66FCF1]"
+              : "bg-[#161618] hover:bg-[#202024] text-stone-300 border border-[#2A2A2E]"
+          }`}
+          id="action-toggle-compare"
+        >
+          <Layers3 className="w-4 h-4" />
+          {isCompareMode ? "Desactivar Comparar" : "Modo Comparar"}
+        </button>
+
         {!readOnly && (
           <button
             onClick={() => setIsCreating(true)}
@@ -235,32 +335,57 @@ export default function SetupHub({
       </div>
 
       {isCompareMode && (
-        <div className="p-4 bg-[#FF3C3C]/5 border border-[#FF3C3C]/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 font-mono active-glow animate-pulse">
-          <div className="flex items-center gap-2.5">
-            <Layers3 className="w-5 h-5 text-[#FF3C3C]" />
-            <div>
-              <span className="text-xs text-[#FF3C3C] font-black tracking-widest block uppercase">BIFURCADOR DE COMPARACIÓN SECUENCIAL</span>
-              <span className="text-[10.5px] text-stone-400 leading-none">
-                Selecciona exactamente dos fichas para trazar variaciones de amortiguadores o aerodinámica.
+        <div className="space-y-3">
+          <div className="p-4 bg-[#FF3C3C]/5 border border-[#FF3C3C]/30 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 font-mono active-glow animate-pulse">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <Layers3 className="w-5 h-5 text-[#FF3C3C]" />
+              <div className="min-w-0 flex-1">
+                <span className="text-xs text-[#FF3C3C] font-black tracking-widest block uppercase">BIFURCADOR DE COMPARACIÓN SECUENCIAL</span>
+                <span className="text-[10.5px] text-stone-300 block leading-tight mt-0.5">
+                  {compareSelection.length === 0 && (
+                    "Selección vacía. Haz clic en 'COMPARAR' en un primer reglaje de referencia."
+                  )}
+                  {compareSelection.length === 1 && (
+                    <>
+                      Excelente. Primer reglaje: <strong className="text-[#66FCF1]">{setups.find(s => s.id === compareSelection[0])?.title}</strong>. Ahora selecciona un segundo del mismo juego.
+                    </>
+                  )}
+                  {compareSelection.length === 2 && (
+                    <>
+                      Reglajes del mismo simulador listos: <strong className="text-[#66FCF1]">{setups.find(s => s.id === compareSelection[0])?.title}</strong> vs <strong className="text-[#66FCF1]">{setups.find(s => s.id === compareSelection[1])?.title}</strong>.
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-[#6B6B70] bg-[#0A0A0B] px-2.5 py-1 rounded border border-[#2A2A2E]">
+                CONFIGURACIONES: <strong className="text-[#66FCF1]">{compareSelection.length}</strong> / 2
               </span>
+              <button
+                disabled={compareSelection.length !== 2}
+                onClick={triggerComparison}
+                className={`px-4 py-1.5 text-xs font-mono uppercase tracking-wider font-extrabold rounded ${
+                  compareSelection.length === 2
+                    ? "bg-[#66FCF1] text-black hover:bg-cyan-300 cursor-pointer"
+                    : "bg-[#1A1A1D] text-stone-600 cursor-not-allowed border border-[#2A2A2E]"
+                }`}
+              >
+                COMPARAR EN PILOTO
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[#6B6B70] bg-[#0A0A0B] px-2.5 py-1 rounded border border-[#2A2A2E]">
-              CONFIGURACIONES: <strong className="text-[#66FCF1]">{compareSelection.length}</strong> / 2
-            </span>
-            <button
-              disabled={compareSelection.length !== 2}
-              onClick={triggerComparison}
-              className={`px-4 py-1.5 text-xs font-mono uppercase tracking-wider font-extrabold rounded ${
-                compareSelection.length === 2
-                  ? "bg-[#66FCF1] text-black hover:bg-cyan-300 cursor-pointer"
-                  : "bg-[#1A1A1D] text-stone-600 cursor-not-allowed border border-[#2A2A2E]"
-              }`}
+
+          {compareError && (
+            <motion.div
+              initial={{ y: -5, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="text-[11px] font-mono text-[#FF3C3C] bg-[#FF3C3C]/10 border border-[#FF3C3C]/20 px-4 py-2.5 rounded-lg flex items-center gap-2"
             >
-              COMPARAR EN PILOTO
-            </button>
-          </div>
+              <span className="font-bold shrink-0">⚠️ MARGEN DE ERROR:</span>
+              <span>{compareError}</span>
+            </motion.div>
+          )}
         </div>
       )}
 
@@ -344,7 +469,7 @@ export default function SetupHub({
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-stone-900 border border-stone-800 rounded-xl w-full max-w-lg p-6 space-y-4 shadow-xl shadow-black/60 relative"
+              className="bg-stone-900 border border-stone-800 rounded-xl w-full max-w-lg p-6 space-y-4 shadow-xl shadow-black/60 relative max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-stone-850"
             >
               <div className="flex items-center justify-between border-b border-stone-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -353,7 +478,12 @@ export default function SetupHub({
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setIsCreating(false)}
+                  onClick={() => {
+                    setIsCreating(false);
+                    setImportedRawValues(null);
+                    setUploadedIniFileName(null);
+                    setImportNotice(null);
+                  }}
                   className="text-stone-400 hover:text-white text-xs font-mono cursor-pointer"
                 >
                   Regresar
@@ -361,6 +491,52 @@ export default function SetupHub({
               </div>
 
               <form onSubmit={handleCreateSubmit} className="space-y-4">
+                {/* INI Setup File Import Panel */}
+                {!importedRawValues && (
+                  <div className="p-3.5 bg-stone-950/40 border border-dashed border-stone-800 hover:border-[#66FCF1]/50 rounded-lg text-center transition-all">
+                    <label className="cursor-pointer flex flex-col items-center justify-center gap-1">
+                      <Upload className="w-5 h-5 text-[#66FCF1] mb-1 animate-pulse" />
+                      <span className="text-[10.5px] font-black text-white uppercase tracking-wider">COMPLEMENTAR CON ARCHIVO .INI</span>
+                      <span className="text-[10px] text-stone-400 max-w-xs mx-auto leading-tight">
+                        {uploadedIniFileName 
+                          ? `Archivo: ${uploadedIniFileName}` 
+                          : "Selecciona el archivo de reglajes .ini para auto-detectar y rellenar automáticamente"}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".ini"
+                        onChange={handleIniFileImport}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {importNotice && (
+                  <div className={`p-2.5 rounded text-[10.5px] font-mono leading-relaxed border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
+                    importNotice.includes("❌") 
+                      ? "bg-red-950/20 text-[#FF3C3C] border-red-950/50" 
+                      : importNotice.includes("⚠️")
+                      ? "bg-amber-950/20 text-amber-500 border-amber-950/50"
+                      : "bg-[#66FCF1]/5 text-[#66FCF1] border-[#66FCF1]/20"
+                  }`}>
+                    <span className="flex-1">{importNotice}</span>
+                    {importedRawValues && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImportedRawValues(null);
+                          setUploadedIniFileName(null);
+                          setImportNotice(null);
+                        }}
+                        className="text-[9px] uppercase tracking-wider bg-stone-850 hover:bg-stone-800 border border-stone-750 px-2.5 py-1 rounded text-[#66FCF1] font-mono cursor-pointer transition-all self-end sm:self-auto shrink-0 font-bold"
+                      >
+                        Cambiar
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {getCarImage(newCar) && (
                   <div className="w-full h-24 sm:h-32 rounded border border-[#2A2A2E] overflow-hidden relative mb-2">
                     <img src={getCarImage(newCar)!} alt="Coche seleccionado" className="absolute inset-0 w-full h-full object-cover opacity-80" />
@@ -493,7 +669,12 @@ export default function SetupHub({
                 <div className="flex gap-2 pt-2 justify-end">
                   <button
                     type="button"
-                    onClick={() => setIsCreating(false)}
+                    onClick={() => {
+                      setIsCreating(false);
+                      setImportedRawValues(null);
+                      setUploadedIniFileName(null);
+                      setImportNotice(null);
+                    }}
                     className="px-4 py-1.5 bg-stone-800 hover:bg-stone-750 text-stone-300 font-mono text-xs rounded transition-all cursor-pointer"
                   >
                     Cancelar

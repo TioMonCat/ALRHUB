@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { CarSetup, SetupTemplate, SetupSection, SetupField, FieldType } from "../types";
-import { ArrowLeft, Save, Plus, Trash2, Info, Compass, Clock } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, Info, Compass, Clock, Download } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { exportSetupToIni } from "./ALRIniParser";
 
 const getCarImage = (carName: string) => {
   const c = carName.toUpperCase();
@@ -583,6 +584,23 @@ export default function SetupDetail({
 
   const isAssetto = setup.game === "Assetto Corsa";
 
+  const exportToIniFile = () => {
+    try {
+      const iniContent = exportSetupToIni(setup, template);
+      const blob = new Blob([iniContent], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const cleanCarName = setup.car ? setup.car.toLowerCase().replace(/[\s\W]+/g, "_") : "setup";
+      const cleanTitleName = setup.title ? setup.title.toLowerCase().replace(/[\s\W]+/g, "_") : "reglaje";
+      link.href = url;
+      link.download = `${cleanCarName}_${cleanTitleName}.ini`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error al exportar a .ini", err);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<string>(effectiveSections[0]?.id || "");
 
   const [isAddingSection, setIsAddingSection] = useState(false);
@@ -919,16 +937,26 @@ export default function SetupDetail({
   return (
     <div className="w-full max-w-[1440px] mx-auto space-y-6 pb-12 px-2 md:px-4">
       {/* Navigation Return */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={onGoBack}
-          className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-white transition-all uppercase font-mono bg-[#161618] border border-[#2A2A2E] px-3.5 py-2 rounded cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5 text-[#FF3C3C] stroke-[3]" />
-          Volver al Garaje
-        </button>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#0B0B0C] border border-[#1C1C1E] p-3 rounded-lg">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onGoBack}
+            className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-white transition-all uppercase font-mono bg-[#161618] border border-[#2A2A2E] px-3.5 py-2 rounded cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-[#FF3C3C] stroke-[3]" />
+            Volver al Garaje
+          </button>
 
-        <span className="text-[10px] text-[#6B6B70] uppercase tracking-wider font-mono">
+          <button
+            onClick={exportToIniFile}
+            className="flex items-center gap-1.5 text-xs text-[#0D0D11] hover:bg-cyan-400 transition-all uppercase font-mono bg-[#66FCF1] border border-[#66FCF1] px-3.5 py-2 rounded font-extrabold cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5 text-black stroke-[3]" />
+            Exportar como .ini
+          </button>
+        </div>
+
+        <span className="text-[10px] text-[#6B6B70] uppercase tracking-wider font-mono px-1">
           Último cambio guardado: {new Date(setup.updatedAt).toLocaleTimeString()}
         </span>
       </div>

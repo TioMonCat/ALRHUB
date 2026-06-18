@@ -429,15 +429,17 @@ export default function App() {
     return setup.customSections || baseTemplate.sections;
   };
 
-  const handleCreateSetup = async (title: string, game: string, car: string, track: string, templateId: string, setupType?: string) => {
+  const handleCreateSetup = async (title: string, game: string, car: string, track: string, templateId: string, setupType?: string, initialValues?: Record<string, string>) => {
     const sourceTemplate = templates.find((t) => t.id === templateId) || LE_MANS_ULTIMATE_GT3_TEMPLATE;
 
-    const initialValues: Record<string, string> = {};
+    const valuesRecord: Record<string, string> = {};
     if (sourceTemplate.sections) {
       sourceTemplate.sections.forEach((sec) => {
         if (sec.fields) {
           sec.fields.forEach((f) => {
-            initialValues[f.id] = f.defaultValue || "0";
+            valuesRecord[f.id] = (initialValues && initialValues[f.id] !== undefined)
+              ? initialValues[f.id]
+              : (f.defaultValue || "0");
           });
         }
       });
@@ -452,7 +454,7 @@ export default function App() {
       templateId: templateId || "le-mans-ultimate-base",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      values: initialValues,
+      values: valuesRecord,
       customSections: sourceTemplate.sections, // Start by directly embedding the template's sections for editability without polluting globals
       ownerId: firebaseUser?.uid || "default_user",
       creatorName: firebaseUser?.displayName || "Piloto En Pruebas",
