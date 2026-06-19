@@ -94,6 +94,7 @@ export const FIELD_TO_INI_MAP: Record<string, FieldMapping> = {
 
   "diff_power_lmp": { iniSection: "DIFF_POWER", iniKey: "VALUE" },
   "diff_coast_lmp": { iniSection: "DIFF_COAST", iniKey: "VALUE" },
+  "gears_lmp": { iniSection: "FINAL_RATIO", iniKey: "VALUE" },
 
   // Generic
   "engine_limiter": { iniSection: "ENGINE_LIMITER", iniKey: "VALUE" },
@@ -221,7 +222,19 @@ export function mapIniToSetupValues(
   Object.keys(FIELD_TO_INI_MAP).forEach(fieldId => {
     const mapping = FIELD_TO_INI_MAP[fieldId];
     if (rawValues[mapping.iniSection] && rawValues[mapping.iniSection][mapping.iniKey] !== undefined) {
-      result[fieldId] = rawValues[mapping.iniSection][mapping.iniKey];
+      let rawVal = rawValues[mapping.iniSection][mapping.iniKey];
+      if (fieldId === "compound" && rawVal === "0") {
+        rawVal = "Medium slick (m)";
+      } else if (fieldId === "compound" && rawVal === "1") {
+        rawVal = "Rain (wet)";
+      } else if (fieldId === "compound_lmp" && rawVal === "0") {
+        rawVal = "LMP Medium (MED)";
+      } else if (fieldId === "gears_lmp") {
+        if (rawVal === "0") rawVal = "10/32";
+        else if (rawVal === "1") rawVal = "10/30";
+        else if (rawVal === "2") rawVal = "10/28";
+      }
+      result[fieldId] = rawVal;
     }
   });
 
@@ -307,12 +320,83 @@ export const CORE_AC_SECTIONS: Record<string, string> = {
   WING_2: "2"
 };
 
+export const CORE_LMP2_SECTIONS: Record<string, string> = {
+  ARB_FRONT: "2",
+  ARB_REAR: "0",
+  BRAKE_POWER_MULT: "100",
+  BUMP_STOP_RATE_LF: "150",
+  BUMP_STOP_RATE_LR: "150",
+  BUMP_STOP_RATE_RF: "150",
+  BUMP_STOP_RATE_RR: "150",
+  CAMBER_LF: "-20",
+  CAMBER_LR: "-15",
+  CAMBER_RF: "-20",
+  CAMBER_RR: "-15",
+  DAMP_BUMP_HF: "14",
+  DAMP_BUMP_HR: "15",
+  DAMP_BUMP_LF: "10",
+  DAMP_BUMP_LR: "13",
+  DAMP_BUMP_RF: "10",
+  DAMP_BUMP_RR: "13",
+  DAMP_FAST_BUMP_HF: "10",
+  DAMP_FAST_BUMP_HR: "7",
+  DAMP_FAST_BUMP_LF: "7",
+  DAMP_FAST_BUMP_LR: "10",
+  DAMP_FAST_BUMP_RF: "7",
+  DAMP_FAST_BUMP_RR: "10",
+  DAMP_FAST_REBOUND_HF: "18",
+  DAMP_FAST_REBOUND_HR: "14",
+  DAMP_FAST_REBOUND_LF: "15",
+  DAMP_FAST_REBOUND_LR: "15",
+  DAMP_FAST_REBOUND_RF: "15",
+  DAMP_FAST_REBOUND_RR: "15",
+  DAMP_REBOUND_HF: "19",
+  DAMP_REBOUND_HR: "16",
+  DAMP_REBOUND_LF: "10",
+  DAMP_REBOUND_LR: "8",
+  DAMP_REBOUND_RF: "10",
+  DAMP_REBOUND_RR: "8",
+  DIFF_COAST: "50",
+  DIFF_POWER: "10",
+  FINAL_RATIO: "2",
+  FRONT_BIAS: "60",
+  FUEL: "20",
+  PACKER_RANGE_LF: "50",
+  PACKER_RANGE_LR: "50",
+  PACKER_RANGE_RF: "50",
+  PACKER_RANGE_RR: "50",
+  PRESSURE_LF: "25",
+  PRESSURE_LR: "25",
+  PRESSURE_RF: "25",
+  PRESSURE_RR: "25",
+  ROD_LENGTH_LF: "6",
+  ROD_LENGTH_LR: "7",
+  ROD_LENGTH_RF: "6",
+  ROD_LENGTH_RR: "7",
+  SPRING_RATE_HF: "4",
+  SPRING_RATE_HR: "5",
+  SPRING_RATE_LF: "2",
+  SPRING_RATE_LR: "4",
+  SPRING_RATE_RF: "2",
+  SPRING_RATE_RR: "4",
+  TOE_OUT_LF: "8",
+  TOE_OUT_LR: "13",
+  TOE_OUT_RF: "8",
+  TOE_OUT_RR: "13",
+  TRACTION_CONTROL: "1",
+  TYRES: "0",
+  WING_2: "4"
+};
+
 export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): string {
   const iniBlocks: string[] = [];
 
+  const isLmp2 = template.id.includes("lmp2") || (setup.templateId && setup.templateId.includes("lmp2"));
+  const coreDict = isLmp2 ? CORE_LMP2_SECTIONS : CORE_AC_SECTIONS;
+
   // Core sections: and insert metadata sections, then sort everything alphabetically.
   const allSections = [
-    ...Object.keys(CORE_AC_SECTIONS),
+    ...Object.keys(coreDict),
     "ABOUT",
     "CAR",
     "__EXT_PATCH"
@@ -344,8 +428,12 @@ export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): stri
           if (setup.values[fieldId] !== undefined && setup.values[fieldId] !== null && setup.values[fieldId] !== "") {
             let rawVal = setup.values[fieldId];
             if (fieldId === "compound" || fieldId === "compound_lmp") {
-              if (rawVal === "Medium slick (m)") rawVal = "0";
+              if (rawVal === "Medium slick (m)" || rawVal === "LMP Medium (MED)") rawVal = "0";
               else if (rawVal === "Rain (wet)") rawVal = "1";
+            } else if (fieldId === "gears_lmp") {
+              if (rawVal === "10/32") rawVal = "0";
+              else if (rawVal === "10/30") rawVal = "1";
+              else if (rawVal === "10/28") rawVal = "2";
             }
             val = rawVal;
             break;
@@ -358,7 +446,7 @@ export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): stri
       }
 
       if (val === null) {
-        val = CORE_AC_SECTIONS[section] !== undefined ? CORE_AC_SECTIONS[section] : "0";
+        val = coreDict[section] !== undefined ? coreDict[section] : "0";
       }
 
       if (section.startsWith("CAMBER_") && val) {
