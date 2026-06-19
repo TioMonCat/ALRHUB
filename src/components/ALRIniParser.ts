@@ -250,58 +250,126 @@ export function mapIniToSetupValues(
   return result;
 }
 
+export const CORE_AC_SECTIONS: Record<string, string> = {
+  ABS: "5",
+  ARB_FRONT: "3",
+  ARB_REAR: "1",
+  BRAKE_POWER_MULT: "100",
+  CAMBER_LF: "-23",
+  CAMBER_LR: "-21",
+  CAMBER_RF: "-23",
+  CAMBER_RR: "-21",
+  DAMP_BUMP_LF: "14",
+  DAMP_BUMP_LR: "7",
+  DAMP_BUMP_RF: "14",
+  DAMP_BUMP_RR: "7",
+  DAMP_FAST_BUMP_LF: "4",
+  DAMP_FAST_BUMP_LR: "4",
+  DAMP_FAST_BUMP_RF: "4",
+  DAMP_FAST_BUMP_RR: "4",
+  DAMP_FAST_REBOUND_LF: "25",
+  DAMP_FAST_REBOUND_LR: "36",
+  DAMP_FAST_REBOUND_RF: "25",
+  DAMP_FAST_REBOUND_RR: "36",
+  DAMP_REBOUND_LF: "20",
+  DAMP_REBOUND_LR: "29",
+  DAMP_REBOUND_RF: "20",
+  DAMP_REBOUND_RR: "29",
+  DIFF_COAST: "45",
+  DIFF_POWER: "10",
+  DIFF_PRELOAD: "80",
+  ENGINE_LIMITER: "100",
+  FINAL_RATIO: "1",
+  FRONT_BIAS: "60",
+  FUEL: "20",
+  PACKER_RANGE_LF: "75",
+  PACKER_RANGE_LR: "75",
+  PACKER_RANGE_RF: "75",
+  PACKER_RANGE_RR: "75",
+  PRESSURE_LF: "19",
+  PRESSURE_LR: "19",
+  PRESSURE_RF: "20",
+  PRESSURE_RR: "19",
+  ROD_LENGTH_LF: "11",
+  ROD_LENGTH_LR: "18",
+  ROD_LENGTH_RF: "11",
+  ROD_LENGTH_RR: "18",
+  SPRING_RATE_LF: "130",
+  SPRING_RATE_LR: "170",
+  SPRING_RATE_RF: "130",
+  SPRING_RATE_RR: "170",
+  TOE_OUT_LF: "10",
+  TOE_OUT_LR: "14",
+  TOE_OUT_RF: "10",
+  TOE_OUT_RR: "14",
+  TRACTION_CONTROL: "5",
+  TYRES: "0",
+  WING_2: "2"
+};
+
 export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): string {
   const iniBlocks: string[] = [];
 
-  // 1. Add [ABOUT]
-  iniBlocks.push("[ABOUT]");
-  iniBlocks.push(`AUTHOR=${setup.creatorName || "MonCat"}`);
-  iniBlocks.push(`DESCRIPTION=${setup.notes || ""}`);
-  iniBlocks.push("");
+  // Core sections: and insert metadata sections, then sort everything alphabetically.
+  const allSections = [
+    ...Object.keys(CORE_AC_SECTIONS),
+    "ABOUT",
+    "CAR",
+    "__EXT_PATCH"
+  ];
 
-  // 2. Add [CAR]
-  iniBlocks.push("[CAR]");
-  iniBlocks.push(`MODEL=${setup.car || "unknown"}`);
-  iniBlocks.push("");
+  // Alphabetical sort matches: ABOUT, ABS, ..., CAR, ..., __EXT_PATCH
+  allSections.sort();
 
-  // Keep track of sections we have already outputted to avoid duplicates
-  const exportedSections = new Set<string>();
-
-  // Map our fields back to INI blocks
-  Object.keys(setup.values).forEach(fieldId => {
-    const mapping = FIELD_TO_INI_MAP[fieldId];
-    if (mapping) {
-      const sectionName = mapping.iniSection;
-      if (!exportedSections.has(sectionName)) {
-        exportedSections.add(sectionName);
-        iniBlocks.push(`[${sectionName}]`);
-        iniBlocks.push(`${mapping.iniKey}=${setup.values[fieldId]}`);
-        iniBlocks.push("");
+  allSections.forEach(section => {
+    if (section === "ABOUT") {
+      iniBlocks.push("[ABOUT]");
+      iniBlocks.push(`AUTHOR=${setup.creatorName || "MonCat"}`);
+      iniBlocks.push(`DESCRIPTION=${setup.notes || ""}`);
+      iniBlocks.push("");
+    } else if (section === "CAR") {
+      iniBlocks.push("[CAR]");
+      iniBlocks.push(`MODEL=${setup.car || "unknown"}`);
+      iniBlocks.push("");
+    } else if (section === "__EXT_PATCH") {
+      iniBlocks.push("[__EXT_PATCH]");
+      iniBlocks.push("VERSION=0.2.11");
+      iniBlocks.push("");
+    } else {
+      // Find matching setup/mapping value
+      let val: string | null = null;
+      
+      for (const [fieldId, mapping] of Object.entries(FIELD_TO_INI_MAP)) {
+        if (mapping.iniSection === section) {
+          if (setup.values[fieldId] !== undefined && setup.values[fieldId] !== null && setup.values[fieldId] !== "") {
+            let rawVal = setup.values[fieldId];
+            if (fieldId === "compound" || fieldId === "compound_lmp") {
+              if (rawVal === "Medium slick (m)") rawVal = "0";
+              else if (rawVal === "Rain (wet)") rawVal = "1";
+            }
+            val = rawVal;
+            break;
+          }
+        }
       }
+
+      if (val === null && setup.values[section.toLowerCase()] !== undefined && setup.values[section.toLowerCase()] !== null && setup.values[section.toLowerCase()] !== "") {
+        val = setup.values[section.toLowerCase()];
+      }
+
+      if (val === null) {
+        val = CORE_AC_SECTIONS[section] !== undefined ? CORE_AC_SECTIONS[section] : "0";
+      }
+
+      if (section.startsWith("CAMBER_") && val) {
+        val = val.replace(".", "");
+      }
+
+      iniBlocks.push(`[${section}]`);
+      iniBlocks.push(`VALUE=${val}`);
+      iniBlocks.push("");
     }
   });
-
-  // For any remaining values that aren't in FIELD_TO_INI_MAP, let's write them if they follow a reasonable pattern
-  Object.keys(setup.values).forEach(fieldId => {
-    const mapping = FIELD_TO_INI_MAP[fieldId];
-    if (!mapping) {
-      const sectionName = fieldId.toUpperCase();
-      // Only export alphanumeric section names to keep INI file clean
-      if (/^[A-Z0-9_]+$/.test(sectionName) && !exportedSections.has(sectionName)) {
-        exportedSections.add(sectionName);
-        iniBlocks.push(`[${sectionName}]`);
-        iniBlocks.push(`VALUE=${setup.values[fieldId]}`);
-        iniBlocks.push("");
-      }
-    }
-  });
-
-  // Always output __EXT_PATCH block to match standard templates perfectly
-  if (!exportedSections.has("__EXT_PATCH")) {
-    iniBlocks.push("[__EXT_PATCH]");
-    iniBlocks.push("VERSION=0.2.11");
-    iniBlocks.push("");
-  }
 
   return iniBlocks.join("\n").trim() + "\n";
 }
