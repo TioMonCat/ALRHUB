@@ -383,9 +383,69 @@ export default function App() {
               mergedTemplates = mergedTemplates.filter((t) => t.id !== cloudTpl.id);
             } else {
               // Edited base template: override the default structure with the cloud customized one
-              mergedTemplates = mergedTemplates.map((t) => 
-                t.id === cloudTpl.id ? cloudTpl : t
-              );
+              // Compare standard fields metadata to see if it's outdated compared to presets.ts
+              const baseOption = DEFAULT_TEMPLATES.find((dt) => dt.id === cloudTpl.id);
+              if (baseOption) {
+                let hasDifference = false;
+                
+                const updatedCloudTpl = {
+                  ...cloudTpl,
+                  sections: (cloudTpl.sections || []).map((sec: any) => {
+                    const baseSec = baseOption.sections.find((bs) => bs.id === sec.id);
+                    if (baseSec && sec.fields) {
+                      return {
+                        ...sec,
+                        fields: sec.fields.map((f: any) => {
+                          const baseField = baseSec.fields.find((bf) => bf.id === f.id);
+                          if (baseField) {
+                            if (
+                              f.min !== baseField.min ||
+                              f.max !== baseField.max ||
+                              f.step !== baseField.step ||
+                              f.unit !== baseField.unit ||
+                              f.defaultValue !== baseField.defaultValue
+                            ) {
+                              hasDifference = true;
+                              return {
+                                ...f,
+                                min: baseField.min,
+                                max: baseField.max,
+                                step: baseField.step,
+                                unit: baseField.unit,
+                                defaultValue: baseField.defaultValue
+                              };
+                            }
+                          }
+                          return f;
+                        })
+                      };
+                    }
+                    return sec;
+                  })
+                };
+
+                if (hasDifference) {
+                  // Push updated base template to the merge state
+                  mergedTemplates = mergedTemplates.map((t) => 
+                    t.id === cloudTpl.id ? updatedCloudTpl : t
+                  );
+                  // Also asynchronously update the database document back to the correct metadata
+                  setDoc(doc(db, templatesPath, cloudTpl.id), {
+                    ...updatedCloudTpl,
+                    ownerId: "default_user"
+                  }).catch((err) => {
+                    console.warn("Could not sync updated template to cloud:", err);
+                  });
+                } else {
+                  mergedTemplates = mergedTemplates.map((t) => 
+                    t.id === cloudTpl.id ? cloudTpl : t
+                  );
+                }
+              } else {
+                mergedTemplates = mergedTemplates.map((t) => 
+                  t.id === cloudTpl.id ? cloudTpl : t
+                );
+              }
             }
           } else {
             // New template created by the user

@@ -138,16 +138,16 @@ export const ASSETTO_CORSA_GT3_TEMPLATE: SetupTemplate = {
       id: "suspension",
       name: "Suspension",
       fields: [
-        { id: "arb_front", name: "ARB Front", type: FieldType.NUMBER, min: 0, max: 7, step: 1, defaultValue: "3" },
-        { id: "wheel_rate_lf", name: "Wheel rate LF", type: FieldType.NUMBER, min: 120, max: 185, step: 1, unit: "N/mm", defaultValue: "150" },
+        { id: "arb_front", name: "ARB Front", type: FieldType.NUMBER, min: 0, max: 11, step: 1, defaultValue: "3" },
+        { id: "wheel_rate_lf", name: "Wheel rate LF", type: FieldType.NUMBER, min: 100, max: 150, step: 1, unit: "N/mm", defaultValue: "130" },
         { id: "height_lf", name: "Height LF", type: FieldType.NUMBER, min: 0, max: 30, step: 1, defaultValue: "15" },
-        { id: "wheel_rate_rf", name: "Wheel rate RF", type: FieldType.NUMBER, min: 120, max: 185, step: 1, unit: "N/mm", defaultValue: "150" },
+        { id: "wheel_rate_rf", name: "Wheel rate RF", type: FieldType.NUMBER, min: 100, max: 150, step: 1, unit: "N/mm", defaultValue: "130" },
         { id: "height_rf", name: "Height RF", type: FieldType.NUMBER, min: 0, max: 30, step: 1, defaultValue: "15" },
-        { id: "wheel_rate_lr", name: "Wheel rate LR", type: FieldType.NUMBER, min: 120, max: 185, step: 1, unit: "N/mm", defaultValue: "140" },
+        { id: "wheel_rate_lr", name: "Wheel rate LR", type: FieldType.NUMBER, min: 150, max: 200, step: 1, unit: "N/mm", defaultValue: "170" },
         { id: "height_lr", name: "Height LR", type: FieldType.NUMBER, min: 0, max: 30, step: 1, defaultValue: "20" },
-        { id: "wheel_rate_rr", name: "Wheel rate RR", type: FieldType.NUMBER, min: 120, max: 185, step: 1, unit: "N/mm", defaultValue: "140" },
+        { id: "wheel_rate_rr", name: "Wheel rate RR", type: FieldType.NUMBER, min: 150, max: 200, step: 1, unit: "N/mm", defaultValue: "170" },
         { id: "height_rr", name: "Height RR", type: FieldType.NUMBER, min: 0, max: 30, step: 1, defaultValue: "20" },
-        { id: "arb_rear", name: "ARB Rear", type: FieldType.NUMBER, min: 0, max: 10, step: 1, defaultValue: "2" }
+        { id: "arb_rear", name: "ARB Rear", type: FieldType.NUMBER, min: 0, max: 7, step: 1, defaultValue: "2" }
       ]
     },
     {
