@@ -260,6 +260,19 @@ export function mapIniToSetupValues(
     });
   });
 
+  // Convert any camber values that are stored as integers (e.g. without a decimal point) to decimals
+  Object.keys(result).forEach(key => {
+    if (key.toLowerCase().includes("camber")) {
+      const val = result[key];
+      if (val && !val.includes(".")) {
+        const num = parseFloat(val);
+        if (!isNaN(num)) {
+          result[key] = (num / 10).toFixed(1);
+        }
+      }
+    }
+  });
+
   return result;
 }
 
