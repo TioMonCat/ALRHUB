@@ -40,6 +40,7 @@ export default function Inicio({
   const [carPref, setCarPref] = useState(currentUserProfile?.carPreference || "");
   const [prefGame, setPrefGame] = useState(currentUserProfile?.preferredGame || "");
   const [steamIdStr, setSteamIdStr] = useState(currentUserProfile?.steamId || "");
+  const [instagram, setInstagram] = useState(currentUserProfile?.instagram || "");
   const [exp, setExp] = useState(currentUserProfile?.experience || "");
   const [msg, setMsg] = useState(currentUserProfile?.message || "");
   const [country, setCountry] = useState(currentUserProfile?.country || "");
@@ -51,6 +52,7 @@ export default function Inicio({
       setCarPref(currentUserProfile.carPreference || "");
       setPrefGame(currentUserProfile.preferredGame || "");
       setSteamIdStr(currentUserProfile.steamId || "");
+      setInstagram(currentUserProfile.instagram || "");
       setExp(currentUserProfile.experience || "");
       setMsg(currentUserProfile.message || "");
       setCountry(currentUserProfile.country || "");
@@ -60,6 +62,7 @@ export default function Inicio({
     currentUserProfile?.carPreference,
     currentUserProfile?.preferredGame,
     currentUserProfile?.steamId,
+    currentUserProfile?.instagram,
     currentUserProfile?.experience,
     currentUserProfile?.message,
     currentUserProfile?.country
@@ -109,6 +112,7 @@ export default function Inicio({
         raceNumber: autoRaceNumber,
         preferredGame: prefGame,
         steamId: steamIdStr,
+        instagram: instagram,
         experience: exp,
         message: msg,
         country: country,
@@ -142,13 +146,14 @@ export default function Inicio({
                   { name: "📧 Correo", value: currentUserProfile.email || "No especificado", inline: true },
                   { name: "🏎️ Vehículo de Competición", value: carPref || "No especificado", inline: true },
                   { name: "🎮 Simulador Preferido", value: prefGame || "No especificado", inline: true },
+                  { name: "📸 Instagram", value: instagram || "No especificado", inline: true },
                   { name: "🏳️ País / Nacionalidad", value: countryText, inline: true },
                   { name: "🆔 Steam ID", value: steamIdStr || "No especificado", inline: true },
                   { name: "📊 Experiencia Simracing", value: exp || "No especificado", inline: true },
                   { name: "💬 Mensaje a los Comisarios", value: msg || "Sin mensaje." }
                 ],
                 footer: {
-                  text: `UID: ${currentUserProfile.uid}`
+                   text: `UID: ${currentUserProfile.uid}`
                 },
                 timestamp: new Date().toISOString()
               }
@@ -475,6 +480,19 @@ export default function Inicio({
                   className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400"
                   value={steamIdStr || ""}
                   onChange={(e) => setSteamIdStr(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">
+                  Usuario de Instagram
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: @tu_usuario"
+                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  value={instagram || ""}
+                  onChange={(e) => setInstagram(e.target.value)}
                 />
               </div>
 

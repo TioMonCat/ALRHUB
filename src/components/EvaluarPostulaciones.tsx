@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { UserProfile } from "../types";
-import { Check, X, ShieldAlert, Award, FileText, Calendar, Mail, Inbox } from "lucide-react";
+import { Check, X, ShieldAlert, Award, FileText, Calendar, Mail, Inbox, Instagram } from "lucide-react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { COUNTRIES } from "../presets";
@@ -135,6 +135,14 @@ export default function EvaluarPostulaciones({
                 <div className="bg-[#17171a] p-2.5 rounded-lg border border-stone-800/40">
                   <p className="text-stone-500 text-[8px] uppercase">Steam ID</p>
                   <p className="text-cyan-400 font-bold mt-0.5">{c.steamId || "N/A"}</p>
+                </div>
+                <div className="bg-[#17171a] p-2.5 rounded-lg border border-stone-800/40">
+                  <p className="text-[#e1306c] text-[8px] uppercase flex items-center gap-1 font-bold">
+                    <Instagram className="w-2.5 h-2.5" /> Instagram
+                  </p>
+                  <p className="text-stone-200 font-bold mt-0.5 truncate" title={c.instagram || "Sin especificar"}>
+                    {c.instagram || "N/A"}
+                  </p>
                 </div>
                 <div className="bg-[#17171a] p-2.5 rounded-lg border border-stone-800/40">
                   <p className="text-stone-500 text-[8px] uppercase">Nacionalidad</p>

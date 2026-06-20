@@ -17,6 +17,7 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
   const [raceNumber, setRaceNumber] = useState("");
   const [preferredGame, setPreferredGame] = useState("");
   const [steamId, setSteamId] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [carPreference, setCarPreference] = useState("");
   const [experience, setExperience] = useState("");
   const [country, setCountry] = useState("");
@@ -31,6 +32,7 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
     setRaceNumber(u.raceNumber || "");
     setPreferredGame(u.preferredGame || "");
     setSteamId(u.steamId || "");
+    setInstagram(u.instagram || "");
     setCarPreference(u.carPreference || "");
     setExperience(u.experience || "");
     setCountry(u.country || "");
@@ -47,6 +49,7 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
         raceNumber,
         preferredGame,
         steamId,
+        instagram,
         carPreference,
         experience,
         country,
@@ -110,6 +113,7 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                   <th className="py-3 px-4">Estado</th>
                   <th className="py-3 px-4 text-center">Dorsal</th>
                   <th className="py-3 px-4">Steam ID</th>
+                  <th className="py-3 px-4">Instagram</th>
                   <th className="py-3 px-4">Nacionalidad</th>
                   <th className="py-3 px-4">Simulador</th>
                   <th className="py-3 px-4">Vehículo Preferido</th>
@@ -237,6 +241,23 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                           />
                         ) : (
                           <span className="text-stone-300 font-mono text-xs">{u.steamId || "--"}</span>
+                        )}
+                      </td>
+
+                      {/* Instagram */}
+                      <td className="py-3 px-4 truncate max-w-[124px]">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            className="bg-[#18181b] border border-stone-800 rounded p-1 text-xs text-white w-28 focus:outline-none"
+                            placeholder="@usuario"
+                            value={instagram}
+                            onChange={(e) => setInstagram(e.target.value)}
+                          />
+                        ) : (
+                          <span className="text-pink-400 font-medium text-xs truncate block max-w-[110px]" title={u.instagram}>
+                            {u.instagram || "--"}
+                          </span>
                         )}
                       </td>
 

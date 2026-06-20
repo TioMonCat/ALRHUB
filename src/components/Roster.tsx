@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { UserProfile } from "../types";
-import { Shield, Eye, Hash, Award, RefreshCw, Layers } from "lucide-react";
+import { Shield, Eye, Hash, Award, RefreshCw, Layers, Instagram } from "lucide-react";
 import { COUNTRIES } from "../presets";
 
 interface RosterProps {
@@ -173,6 +173,14 @@ export default function Roster({ users, isLoading }: RosterProps) {
                     <div className="flex justify-between items-center px-1">
                       <span className="text-stone-500 text-[10px] font-mono uppercase">Steam ID</span>
                       <span className="text-cyan-400 font-bold font-mono">{pilot.steamId || "N/A"}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-stone-500 text-[10px] font-mono uppercase">Instagram</span>
+                      <span className="text-pink-400 font-semibold font-sans text-xs flex items-center gap-1">
+                        <Instagram className="w-3 h-3" />
+                        {pilot.instagram || "N/A"}
+                      </span>
                     </div>
 
                     {pilot.appliedAt && (

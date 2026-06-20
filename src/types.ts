@@ -78,6 +78,7 @@ export interface UserProfile {
   steamId?: string;
   experience?: string;
   message?: string;
+  instagram?: string;
   appliedAt?: string;
   country?: string;
 }
