@@ -146,7 +146,11 @@ export default function Roster({ users, isLoading }: RosterProps) {
                     <div className="flex justify-between items-center bg-[#17171a] p-2 rounded-lg border border-stone-800/40">
                       <span className="text-stone-500 text-[10px] font-mono uppercase">Garaje Preferido</span>
                       <span className={`font-bold font-mono text-[11px] truncate max-w-[130px] ${
-                        pilot.carPreference?.includes("LMP2") ? "text-fuchsia-400 font-extrabold" : "text-stone-200"
+                        pilot.carPreference?.includes("LMP2") 
+                          ? "text-fuchsia-400 font-extrabold" 
+                          : pilot.carPreference?.includes("GT3") 
+                          ? "text-rose-400 font-extrabold" 
+                          : "text-stone-200"
                       }`} title={pilot.carPreference}>
                         {pilot.carPreference || "Sin especificar"}
                       </span>

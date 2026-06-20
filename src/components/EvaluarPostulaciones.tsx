@@ -119,7 +119,11 @@ export default function EvaluarPostulaciones({
                 <div className="bg-[#17171a] p-2.5 rounded-lg border border-stone-800/40">
                   <p className="text-stone-500 text-[8px] uppercase">Vehículo Solicitado</p>
                   <p className={`font-bold mt-0.5 truncate ${
-                    c.carPreference?.includes("LMP2") ? "text-fuchsia-400 font-extrabold" : "text-stone-300"
+                    c.carPreference?.includes("LMP2") 
+                      ? "text-fuchsia-400 font-extrabold" 
+                      : c.carPreference?.includes("GT3") 
+                      ? "text-rose-400 font-extrabold" 
+                      : "text-stone-300"
                   }`}>{c.carPreference || "Sin especificar"}</p>
                 </div>
                 <div className="bg-[#17171a] p-2.5 rounded-lg border border-stone-800/40">

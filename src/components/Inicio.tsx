@@ -99,7 +99,7 @@ export default function Inicio({
     const path = `users/${currentUserProfile.uid}`;
     let autoRaceNumber = currentUserProfile.raceNumber || "";
     if (!autoRaceNumber || currentUserProfile.carPreference !== carPref) {
-      if (carPref === "Mercedes AMG EVO | GT3") {
+      if (carPref === "Ferrari 296 | GT3") {
         autoRaceNumber = "05";
       } else if (carPref === "Oreca 07 | LMP2") {
         autoRaceNumber = "32";
@@ -445,7 +445,7 @@ export default function Inicio({
                   onChange={(e) => setCarPref(e.target.value)}
                 >
                   <option value="">-- Selecciona --</option>
-                  <option value="Mercedes AMG EVO | GT3">Mercedes AMG EVO | GT3</option>
+                  <option value="Ferrari 296 | GT3">Ferrari 296 | GT3</option>
                   <option value="Oreca 07 | LMP2">Oreca 07 | LMP2</option>
                 </select>
               </div>

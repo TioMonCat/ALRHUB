@@ -201,7 +201,7 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                       {/* Racing Number / Dorsal */}
                       <td className="py-3 px-4 text-center font-mono">
                         {isEditing ? (
-                          carPreference === "Mercedes AMG EVO | GT3" ? (
+                          carPreference === "Ferrari 296 | GT3" ? (
                             <select
                               className="bg-[#18181b] border border-stone-800 rounded p-1 text-xs text-white font-mono w-16 text-center focus:outline-none"
                               value={raceNumber}
@@ -322,7 +322,7 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                             onChange={(e) => {
                               const val = e.target.value;
                               setCarPreference(val);
-                              if (val === "Mercedes AMG EVO | GT3") {
+                              if (val === "Ferrari 296 | GT3") {
                                 if (raceNumber !== "05" && raceNumber !== "08") {
                                   setRaceNumber("05");
                                 }
@@ -332,12 +332,16 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                             }}
                           >
                             <option value="">--</option>
-                            <option value="Mercedes AMG EVO | GT3">Mercedes AMG EVO | GT3</option>
+                            <option value="Ferrari 296 | GT3">Ferrari 296 | GT3</option>
                             <option value="Oreca 07 | LMP2">Oreca 07 | LMP2</option>
                           </select>
                         ) : (
                           <span className={`${
-                            u.carPreference?.includes("LMP2") ? "text-fuchsia-400 font-bold" : "text-stone-300"
+                            u.carPreference?.includes("LMP2") 
+                              ? "text-fuchsia-400 font-bold" 
+                              : u.carPreference?.includes("GT3") 
+                              ? "text-rose-400 font-bold" 
+                              : "text-stone-300"
                           } font-mono text-xs`}>{u.carPreference || "--"}</span>
                         )}
                       </td>
