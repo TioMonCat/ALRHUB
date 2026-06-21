@@ -1,4 +1,4 @@
-import { SetupTemplate, CarSetup } from "../types";
+import { SetupTemplate, CarSetup, FieldType } from "../types";
 
 export interface FieldMapping {
   iniSection: string;
@@ -262,7 +262,8 @@ export function mapIniToSetupValues(
 
   // Convert any camber values that are stored as integers (e.g. without a decimal point) to decimals
   Object.keys(result).forEach(key => {
-    if (key.toLowerCase().includes("camber")) {
+    const kLower = key.toLowerCase();
+    if (kLower.includes("camber")) {
       const val = result[key];
       if (val && !val.includes(".")) {
         const num = parseFloat(val);
@@ -271,6 +272,29 @@ export function mapIniToSetupValues(
         }
       }
     }
+  });
+
+  // Clamp and round numerical values to match templates increments (e.g., diff_power and diff_preload to steps of 10)
+  template.sections.forEach(sec => {
+    sec.fields.forEach(f => {
+      if ((f.type === "number" || f.type === FieldType.NUMBER) && result[f.id] !== undefined) {
+        let val = parseFloat(result[f.id]);
+        if (!isNaN(val)) {
+          if (f.min !== undefined && val < f.min) val = f.min;
+          if (f.max !== undefined && val > f.max) val = f.max;
+          if (f.step !== undefined && f.step > 0) {
+            const minBound = f.min !== undefined ? f.min : 0;
+            const steps = Math.round((val - minBound) / f.step);
+            val = minBound + steps * f.step;
+            const stepStr = f.step.toString();
+            const decimals = stepStr.includes(".") ? (stepStr.split(".")[1] || "").length : 0;
+            result[f.id] = val.toFixed(decimals);
+          } else {
+            result[f.id] = val.toString();
+          }
+        }
+      }
+    });
   });
 
   return result;
@@ -463,7 +487,10 @@ export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): stri
       }
 
       if (section.startsWith("CAMBER_") && val) {
-        val = val.replace(".", "");
+        const num = parseFloat(val);
+        if (!isNaN(num)) {
+          val = Math.round(num * 10).toString();
+        }
       }
 
       iniBlocks.push(`[${section}]`);

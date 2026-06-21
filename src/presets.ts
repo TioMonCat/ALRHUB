@@ -120,9 +120,9 @@ export const ASSETTO_CORSA_GT3_TEMPLATE: SetupTemplate = {
       id: "drivetrain",
       name: "Drivetrain",
       fields: [
-        { id: "diff_power", name: "Diff Power", type: FieldType.NUMBER, min: 10, max: 90, step: 1, unit: "%", defaultValue: "40" },
-        { id: "diff_preload", name: "Diff Preload", type: FieldType.NUMBER, min: 0, max: 180, step: 1, unit: "Nm", defaultValue: "40" },
-        { id: "diff_coast", name: "Diff Coast", type: FieldType.NUMBER, min: 10, max: 90, step: 1, unit: "%", defaultValue: "30" }
+        { id: "diff_power", name: "Diff Power", type: FieldType.NUMBER, min: 0, max: 200, step: 10, unit: "%", defaultValue: "40" },
+        { id: "diff_preload", name: "Diff Preload", type: FieldType.NUMBER, min: 0, max: 200, step: 10, unit: "Nm", defaultValue: "40" },
+        { id: "diff_coast", name: "Diff Coast", type: FieldType.NUMBER, min: 0, max: 90, step: 1, unit: "%", defaultValue: "30" }
       ]
     },
     {
@@ -248,7 +248,7 @@ export const ASSETTO_CORSA_LMP2_TEMPLATE: SetupTemplate = {
       name: "Drivetrain",
       fields: [
         { id: "diff_power_lmp", name: "Diff Power", type: FieldType.NUMBER, min: 10, max: 90, step: 1, unit: "%", defaultValue: "40" },
-        { id: "diff_coast_lmp", name: "Diff Coast", type: FieldType.NUMBER, min: 10, max: 90, step: 1, unit: "%", defaultValue: "30" }
+        { id: "diff_coast_lmp", name: "Diff Coast", type: FieldType.NUMBER, min: 0, max: 90, step: 1, unit: "%", defaultValue: "30" }
       ]
     },
     {
