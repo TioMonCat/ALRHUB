@@ -92,7 +92,7 @@ export default function Roster({ users, isLoading }: RosterProps) {
                 <div className="absolute top-4 right-4 text-xs font-mono font-bold flex items-center justify-center p-2 rounded-lg bg-stone-900 border border-stone-800 w-10 h-10 shadow-inner">
                   <span className="text-[10px] text-stone-500 font-mono mr-0.5">#</span>
                   <span className={`text-sm font-black tracking-tighter ${
-                    pilot.raceNumber === "32" ? "text-amber-400 font-extrabold" : "text-cyan-400"
+                    pilot.raceNumber === "32" || pilot.raceNumber === "43" ? "text-amber-400 font-extrabold" : "text-cyan-400"
                   }`}>
                     {pilot.raceNumber || "00"}
                   </span>

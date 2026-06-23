@@ -100,9 +100,13 @@ export default function Inicio({
     let autoRaceNumber = currentUserProfile.raceNumber || "";
     if (!autoRaceNumber || currentUserProfile.carPreference !== carPref) {
       if (carPref === "Ferrari 296 | GT3") {
-        autoRaceNumber = "05";
+        if (autoRaceNumber !== "05" && autoRaceNumber !== "08") {
+          autoRaceNumber = "05";
+        }
       } else if (carPref === "Oreca 07 | LMP2") {
-        autoRaceNumber = "32";
+        if (autoRaceNumber !== "32" && autoRaceNumber !== "43") {
+          autoRaceNumber = "32";
+        }
       }
     }
 

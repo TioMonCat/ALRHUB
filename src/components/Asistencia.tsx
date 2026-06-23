@@ -399,7 +399,7 @@ export default function Asistencia({
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`text-[10px] font-mono font-extrabold px-1 py-0.5 rounded leading-none shrink-0 border ${
-                                  record.raceNumber === "32"
+                                  record.raceNumber === "32" || record.raceNumber === "43"
                                     ? "bg-amber-950/30 text-amber-400 border-amber-500/20"
                                     : "bg-[#1d1f27] text-cyan-400 border border-cyan-500/20"
                                 }`} title="Dorsal">

@@ -211,9 +211,14 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                               <option value="08">08</option>
                             </select>
                           ) : carPreference === "Oreca 07 | LMP2" ? (
-                            <span className="text-fuchsia-400 font-mono text-xs font-bold bg-fuchsia-950/20 border border-fuchsia-500/20 px-1.5 py-0.5 rounded">
-                              32
-                            </span>
+                            <select
+                              className="bg-[#18181b] border border-stone-800 rounded p-1 text-xs text-white font-mono w-16 text-center focus:outline-none"
+                              value={raceNumber}
+                              onChange={(e) => setRaceNumber(e.target.value)}
+                            >
+                              <option value="32">32</option>
+                              <option value="43">43</option>
+                            </select>
                           ) : (
                             <input
                               type="text"
@@ -225,7 +230,7 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                           )
                         ) : (
                           <span className={`${
-                            u.raceNumber === "32" ? "text-fuchsia-400 font-extrabold" : "text-cyan-400"
+                            u.raceNumber === "32" || u.raceNumber === "43" ? "text-fuchsia-400 font-extrabold" : "text-cyan-400"
                           } font-extrabold`}>#{u.raceNumber || "00"}</span>
                         )}
                       </td>
@@ -327,7 +332,9 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                                   setRaceNumber("05");
                                 }
                               } else if (val === "Oreca 07 | LMP2") {
-                                setRaceNumber("32");
+                                if (raceNumber !== "32" && raceNumber !== "43") {
+                                  setRaceNumber("32");
+                                }
                               }
                             }}
                           >

@@ -129,7 +129,7 @@ export default function EvaluarPostulaciones({
                 <div className="bg-[#17171a] p-2.5 rounded-lg border border-stone-800/40">
                   <p className="text-stone-500 text-[8px] uppercase">Dorsal Pretendido</p>
                   <p className={`font-extrabold mt-0.5 ${
-                    c.raceNumber === "32" ? "text-amber-400" : "text-[#64ffda]"
+                    c.raceNumber === "32" || c.raceNumber === "43" ? "text-amber-400" : "text-[#64ffda]"
                   }`}>#{c.raceNumber || "00"}</p>
                 </div>
                 <div className="bg-[#17171a] p-2.5 rounded-lg border border-stone-800/40">
