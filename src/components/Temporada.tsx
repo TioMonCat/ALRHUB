@@ -9,6 +9,7 @@ interface TemporadaProps {
   currentUserProfile: UserProfile | null;
   isLoading: boolean;
   pilots: UserProfile[];
+  dbReadOnly?: boolean;
 }
 
 export default function Temporada({
@@ -16,6 +17,7 @@ export default function Temporada({
   currentUserProfile,
   isLoading,
   pilots,
+  dbReadOnly = false,
 }: TemporadaProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -41,7 +43,7 @@ export default function Temporada({
   const isAdmin = currentUserProfile?.role === "admin";
 
   const handleCreateGeneralTraining = async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || dbReadOnly) return;
     setIsSubmitting(true);
     const newEvent: Omit<TeamEvent, "id"> = {
       title: "Entrenamiento Libre Oficial",
@@ -66,7 +68,7 @@ export default function Temporada({
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!isAdmin || dbReadOnly) return;
     setIsSubmitting(true);
 
     const newEvent: Omit<TeamEvent, "id"> = {
@@ -101,7 +103,7 @@ export default function Temporada({
   };
 
   const handleDeleteEvent = async (id: string) => {
-    if (!isAdmin) return;
+    if (!isAdmin || dbReadOnly) return;
 
     const path = `events/${id}`;
     try {
@@ -124,7 +126,7 @@ export default function Temporada({
 
   const handleSaveResults = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!registeringEventId || !isAdmin) return;
+    if (!registeringEventId || !isAdmin || dbReadOnly) return;
 
     const sortedResults = [...resultsRows].sort((a, b) => {
       const numA = parseInt(a.position, 10);
@@ -231,7 +233,7 @@ export default function Temporada({
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingEventId || !isAdmin) return;
+    if (!editingEventId || !isAdmin || dbReadOnly) return;
     setIsSubmitting(true);
 
     const path = `events/${editingEventId}`;
@@ -318,7 +320,7 @@ export default function Temporada({
           <div className="flex gap-2">
             <button
               onClick={handleCreateGeneralTraining}
-              disabled={isSubmitting}
+              disabled={isSubmitting || dbReadOnly}
               className="flex items-center gap-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
             >
               Entrenamiento Libre
@@ -445,12 +447,18 @@ export default function Temporada({
             </label>
           </div>
 
+          {dbReadOnly && (
+            <div className="p-2.5 bg-amber-950/25 border border-amber-900/35 text-amber-400 rounded-lg text-[11px] font-mono leading-relaxed">
+              ⚠️ La base de datos está en modo de solo lectura. No puedes programar eventos en este momento.
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || dbReadOnly}
             className="bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer"
           >
-            {isSubmitting ? "Guardando..." : "Programar GP"}
+            {dbReadOnly ? "Solo Lectura" : isSubmitting ? "Guardando..." : "Programar GP"}
           </button>
         </form>
       )}

@@ -8,9 +8,10 @@ import { COUNTRIES } from "../presets";
 interface GestionAdminProps {
   users: UserProfile[];
   isLoading: boolean;
+  dbReadOnly?: boolean;
 }
 
-export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
+export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: GestionAdminProps) {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [role, setRole] = useState<UserProfile["role"]>("piloto");
   const [status, setStatus] = useState<UserProfile["status"]>("aprobado");
@@ -39,6 +40,10 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
   };
 
   const handleSaveUser = async (uid: string) => {
+    if (dbReadOnly) {
+      setErrorMsg("La base de datos está en modo de solo lectura. No puedes guardar cambios.");
+      return;
+    }
     setIsSaving(true);
     setErrorMsg(null);
     const path = `users/${uid}`;
@@ -64,6 +69,10 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
   };
 
   const handleDeleteUser = async (uid: string) => {
+    if (dbReadOnly) {
+      setErrorMsg("La base de datos está en modo de solo lectura. No puedes eliminar pilotos.");
+      return;
+    }
     setErrorMsg(null);
     try {
       await deleteDoc(doc(db, "users", uid));
@@ -383,8 +392,8 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                             </button>
                             <button
                               onClick={() => handleSaveUser(u.uid)}
-                              disabled={isSaving}
-                              className="bg-cyan-500 hover:bg-cyan-400 text-black px-2.5 py-1 rounded text-xs font-mono font-bold uppercase transition-all cursor-pointer"
+                              disabled={isSaving || dbReadOnly}
+                              className="bg-cyan-500 hover:bg-cyan-400 text-black px-2.5 py-1 rounded text-xs font-mono font-bold uppercase transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               {isSaving ? "..." : "Guardar"}
                             </button>
@@ -419,8 +428,13 @@ export default function GestionAdmin({ users, isLoading }: GestionAdminProps) {
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => setDeletingUserId(u.uid)}
-                                  className="text-red-400 hover:text-white hover:bg-red-900/50 bg-stone-900 border border-red-900/50 px-2.5 py-1 rounded text-[10.51px] font-mono uppercase transition-all cursor-pointer"
+                                  onClick={() => !dbReadOnly && setDeletingUserId(u.uid)}
+                                  disabled={dbReadOnly}
+                                  className={`px-2.5 py-1 rounded text-[10.51px] font-mono uppercase transition-all ${
+                                    dbReadOnly 
+                                      ? "text-stone-700 bg-stone-950 border border-stone-900 cursor-not-allowed opacity-40" 
+                                      : "text-red-400 hover:text-white hover:bg-red-900/50 bg-stone-900 border border-red-900/50 cursor-pointer"
+                                  }`}
                                 >
                                   Eliminar
                                 </button>

@@ -15,7 +15,7 @@ import {
   ArrowRight,
   Sliders
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { COUNTRIES } from "../presets";
@@ -27,6 +27,7 @@ interface InicioProps {
   setups: CarSetup[];
   onNavigate: (view: any) => void;
   pilotsCount: number;
+  dbReadOnly?: boolean;
 }
 
 export default function Inicio({
@@ -36,6 +37,7 @@ export default function Inicio({
   setups,
   onNavigate,
   pilotsCount,
+  dbReadOnly = false,
 }: InicioProps) {
   const [carPref, setCarPref] = useState(currentUserProfile?.carPreference || "");
   const [prefGame, setPrefGame] = useState(currentUserProfile?.preferredGame || "");
@@ -46,6 +48,7 @@ export default function Inicio({
   const [country, setCountry] = useState(currentUserProfile?.country || "");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showFichaSuccessModal, setShowFichaSuccessModal] = useState(false);
 
   React.useEffect(() => {
     if (currentUserProfile) {
@@ -125,6 +128,7 @@ export default function Inicio({
         rejectionReason: "" // clear any previous rejection reason
       });
       setSaveSuccess(true);
+      setShowFichaSuccessModal(true);
 
       // Enviar notificación a Discord Webhook
       try {
@@ -428,7 +432,8 @@ export default function Inicio({
                   </label>
                   <select
                     required
-                    className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 mb-3"
+                    disabled={dbReadOnly}
+                    className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     value={prefGame || ""}
                     onChange={(e) => setPrefGame(e.target.value)}
                   >
@@ -444,7 +449,8 @@ export default function Inicio({
                 </label>
                 <select
                   required
-                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  disabled={dbReadOnly}
+                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   value={carPref || ""}
                   onChange={(e) => setCarPref(e.target.value)}
                 >
@@ -460,7 +466,8 @@ export default function Inicio({
                 </label>
                 <select
                   required
-                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  disabled={dbReadOnly}
+                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   value={country || ""}
                   onChange={(e) => setCountry(e.target.value)}
                 >
@@ -480,8 +487,9 @@ export default function Inicio({
                 <input
                   type="text"
                   required
+                  disabled={dbReadOnly}
                   placeholder="Ej: 76561198..."
-                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   value={steamIdStr || ""}
                   onChange={(e) => setSteamIdStr(e.target.value)}
                 />
@@ -493,8 +501,9 @@ export default function Inicio({
                 </label>
                 <input
                   type="text"
+                  disabled={dbReadOnly}
                   placeholder="Ej: @tu_usuario"
-                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   value={instagram || ""}
                   onChange={(e) => setInstagram(e.target.value)}
                 />
@@ -506,7 +515,8 @@ export default function Inicio({
                 </label>
                 <select
                   required
-                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400"
+                  disabled={dbReadOnly}
+                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
                   value={exp || ""}
                   onChange={(e) => setExp(e.target.value)}
                 >
@@ -524,13 +534,20 @@ export default function Inicio({
                 </label>
                 <textarea
                   required
+                  disabled={dbReadOnly}
                   rows={2}
                   placeholder="Háblanos un poco de ti o de tus objetivos..."
-                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 resize-none"
+                  className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                   value={msg || ""}
                   onChange={(e) => setMsg(e.target.value)}
                 />
               </div>
+
+              {dbReadOnly && (
+                <div className="p-2.5 bg-amber-950/25 border border-amber-900/35 text-amber-400 rounded-lg text-[11px] font-mono leading-relaxed">
+                  ⚠️ El portal se encuentra temporalmente en modo de solo lectura. No es posible enviar o actualizar postulaciones en este momento.
+                </div>
+              )}
 
               {saveSuccess && (
                 <div className="p-2.5 bg-emerald-950/40 border border-emerald-900/50 rounded-lg text-emerald-400 text-[11px] font-mono flex items-center gap-2">
@@ -541,10 +558,10 @@ export default function Inicio({
 
               <button
                 type="submit"
-                disabled={isUpdatingProfile}
+                disabled={isUpdatingProfile || dbReadOnly}
                 className="w-full bg-cyan-500 hover:bg-cyan-400 text-black py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer"
               >
-                {isUpdatingProfile ? "Enviando..." : "Enviar / Actualizar Ficha"}
+                {dbReadOnly ? "Modo Solo Lectura" : isUpdatingProfile ? "Enviando..." : "Enviar / Actualizar Ficha"}
               </button>
             </form>
             )}
@@ -722,6 +739,65 @@ export default function Inicio({
           </div>
         </div>
       )}
+
+      {/* Celebration Modal for Ficha Submission */}
+      <AnimatePresence>
+        {showFichaSuccessModal && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-[#111113] border border-stone-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl relative overflow-hidden text-center"
+            >
+              <div className="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-[60px] pointer-events-none" />
+              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-cyan-500/10 rounded-full blur-[60px] pointer-events-none" />
+
+              <div className="space-y-5 relative z-10">
+                <div className="w-16 h-16 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-emerald-400 text-3xl shadow-[0_0_15px_rgba(16,185,129,0.2)] animate-bounce">
+                  🏆
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="text-lg font-extrabold text-white uppercase tracking-tight font-display">
+                    ¡Ficha de Piloto Enviada!
+                  </h3>
+                  <p className="text-[10px] text-emerald-400 font-mono uppercase tracking-widest">Postulación Sincronizada con Éxito</p>
+                </div>
+
+                <p className="text-xs text-stone-300 leading-relaxed font-sans">
+                  ¡Felicidades! Tu postulación ha sido guardada en nuestra base de datos en la nube. Hemos alertado inmediatamente a la Junta de Comisarios mediante una notificación directa en Discord.
+                </p>
+
+                <div className="bg-[#0b0b0d] p-3 rounded-xl border border-stone-850 text-left space-y-2">
+                  <span className="text-[9px] text-stone-500 uppercase tracking-wider font-mono block">Próximos pasos recomendados:</span>
+                  <div className="space-y-1.5 text-[11px] text-stone-300">
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-cyan-400 shrink-0 font-bold">•</span>
+                      <span>Mantente atento a tus notificaciones de correo e Instagram.</span>
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-cyan-400 shrink-0 font-bold">•</span>
+                      <span>Tu estado actual en el portal ALR figura como <strong className="text-cyan-400 font-medium">Pendiente</strong>.</span>
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-cyan-400 shrink-0 font-bold">•</span>
+                      <span>Una vez aprobada, tendrás acceso completo al garaje técnico de setups.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowFichaSuccessModal(false)}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-black py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg hover:shadow-emerald-500/10 cursor-pointer"
+                >
+                  Entendido, Ir a Boxes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

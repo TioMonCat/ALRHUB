@@ -10,6 +10,7 @@ interface AsistenciaProps {
   currentUserProfile: UserProfile | null;
   isLoading: boolean;
   pilots: UserProfile[];
+  dbReadOnly?: boolean;
 }
 
 export default function Asistencia({
@@ -18,6 +19,7 @@ export default function Asistencia({
   currentUserProfile,
   isLoading,
   pilots,
+  dbReadOnly = false,
 }: AsistenciaProps) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [rsvpStatus, setRsvpStatus] = useState<"yes" | "no" | "maybe">("yes");
@@ -37,7 +39,7 @@ export default function Asistencia({
 
   const handleSaveRSVP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUserProfile || !activeEventId) return;
+    if (!currentUserProfile || !activeEventId || dbReadOnly) return;
     setIsSaving(true);
     setSaveSuccess(false);
 
@@ -78,7 +80,7 @@ export default function Asistencia({
   };
 
   const handleSaveStrategy = async () => {
-    if (!activeEventId || currentUserProfile?.role !== "admin") return;
+    if (!activeEventId || currentUserProfile?.role !== "admin" || dbReadOnly) return;
     setIsSavingStrategy(true);
     const path = `events/${activeEventId}`;
     try {
@@ -274,6 +276,12 @@ export default function Asistencia({
                       />
                     </div>
 
+                    {dbReadOnly && (
+                      <p className="p-2 bg-amber-950/25 border border-amber-900/35 rounded-lg text-amber-400 text-[11px] font-mono flex items-center gap-2">
+                        ⚠️ La base de datos está en modo de solo lectura. No puedes enviar confirmaciones de asistencia.
+                      </p>
+                    )}
+
                     {saveSuccess && (
                       <p className="p-2 bg-emerald-950/30 border border-emerald-900/40 rounded-lg text-emerald-400 text-[11.51px] font-mono flex items-center gap-2">
                         <Sparkles className="w-4 h-4" />
@@ -284,11 +292,11 @@ export default function Asistencia({
                     <div className="flex justify-end pt-1">
                       <button
                         type="submit"
-                        disabled={isSaving}
-                        className="bg-emerald-500 hover:bg-emerald-400 text-black px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all select-none cursor-pointer"
+                        disabled={isSaving || dbReadOnly}
+                        className="bg-emerald-500 hover:bg-emerald-400 text-black px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all select-none cursor-pointer disabled:opacity-40"
                       >
                         <Save className="w-3.5 h-3.5" />
-                        {isSaving ? "Guardando..." : "Guardar Disponibilidad"}
+                        {dbReadOnly ? "Solo Lectura" : isSaving ? "Guardando..." : "Guardar Disponibilidad"}
                       </button>
                     </div>
                   </form>

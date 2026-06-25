@@ -116,6 +116,41 @@ export default function App() {
   const [verificationSuccess, setVerificationSuccess] = useState<string | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
+  const [dbError, setDbError] = useState<{ hasError: boolean; message: string; isQuota: boolean } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Check if onboarding was already completed
+    const isCompleted = localStorage.getItem("alr_onboarding_completed");
+    if (!isCompleted) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  const handleCloseOnboarding = () => {
+    localStorage.setItem("alr_onboarding_completed", "true");
+    setShowOnboarding(false);
+  };
+
+  const handleDatabaseListenerError = (error: any) => {
+    console.error("Database listener error caught:", error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const lowercaseMsg = errMsg.toLowerCase();
+    const isQuota = lowercaseMsg.includes("quota") || 
+                    lowercaseMsg.includes("exceeded") || 
+                    lowercaseMsg.includes("resource-exhausted") || 
+                    lowercaseMsg.includes("permission") ||
+                    lowercaseMsg.includes("insufficient") ||
+                    lowercaseMsg.includes("offline") ||
+                    lowercaseMsg.includes("network");
+    
+    setDbError({
+      hasError: true,
+      message: errMsg,
+      isQuota: isQuota
+    });
+  };
+
   const handlePromoteSelfToAdmin = async () => {
     if (!firebaseUser || !currentUserProfile) return;
     setIsLoadingPortal(true);
@@ -223,6 +258,7 @@ export default function App() {
     }, (error) => {
       console.error("Profile onSnapshot error:", error);
       setIsLoadingPortal(false);
+      handleDatabaseListenerError(error);
     });
 
     // All Users listener (essential for showing official rosters & evaluating nominations)
@@ -236,6 +272,7 @@ export default function App() {
     }, (error) => {
       console.error("Users onSnapshot error:", error);
       setIsLoadingPortal(false);
+      handleDatabaseListenerError(error);
     });
 
     // Settings listener
@@ -250,6 +287,7 @@ export default function App() {
       }
     }, (error) => {
       console.error("Settings onSnapshot error:", error);
+      handleDatabaseListenerError(error);
     });
 
     // News Bulletins listener
@@ -284,6 +322,7 @@ export default function App() {
     }, (error) => {
       console.error("News onSnapshot error:", error);
       setIsLoadingPortal(false);
+      handleDatabaseListenerError(error);
     });
 
     // Events Season calendar listener
@@ -312,6 +351,7 @@ export default function App() {
     }, (error) => {
       console.error("Events onSnapshot error:", error);
       setIsLoadingPortal(false);
+      handleDatabaseListenerError(error);
     });
 
     // RSVP Attendance logs list
@@ -324,6 +364,7 @@ export default function App() {
     }, (error) => {
       console.error("Attendance onSnapshot error:", error);
       setIsLoadingPortal(false);
+      handleDatabaseListenerError(error);
     });
 
     return () => {
@@ -361,7 +402,7 @@ export default function App() {
       },
       (error) => {
         setIsLoadingCloudSetups(false);
-        handleFirestoreError(error, OperationType.LIST, setupsPath);
+        handleDatabaseListenerError(error);
       }
     );
 
@@ -459,7 +500,7 @@ export default function App() {
         setTemplates(mergedTemplates);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, templatesPath);
+        handleDatabaseListenerError(error);
       }
     );
 
@@ -1174,6 +1215,31 @@ export default function App() {
 
       {/* Main Canvas Body Screen Router */}
       <main className="flex-1 w-full mx-auto px-4 lg:px-8 xl:px-12 py-6 z-10 transition-all duration-300">
+        {dbError && dbError.hasError && (
+          <div className="mb-6 bg-red-950/30 border border-red-500/30 rounded-2xl p-5 flex flex-col md:flex-row items-start gap-4 shadow-2xl backdrop-blur-md relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b from-red-500 to-amber-500" />
+            <div className="flex items-start gap-3.5 pl-2">
+              <span className="p-2.5 bg-red-500/10 text-red-400 rounded-xl border border-red-500/20 mt-0.5 md:mt-0 shrink-0 shadow-[0_0_15px_rgba(239,68,68,0.15)]">
+                <ShieldAlert className="w-5 h-5 animate-pulse text-red-400" />
+              </span>
+              <div>
+                <h4 className="text-sm font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-amber-400 font-mono uppercase tracking-wider">
+                  {dbError.isQuota ? "⚠️ PÁGINA NO DISPONIBLE PARA REGISTROS O CAMBIOS HOY (MODO SOLO LECTURA)" : "⚠️ CONEXIÓN DE BASE DE DATOS INACTIVA"}
+                </h4>
+                <p className="text-xs text-stone-200 leading-relaxed mt-1.5 font-sans">
+                  {dbError.isQuota 
+                    ? "Hemos alcanzado la cuota de escritura diaria de la base de datos de Google Firebase en nuestro plan de desarrollo. El portal simracing se encuentra congelado temporalmente para guardar nueva información hoy. Tu cuenta de prueba, tu ficha de piloto y las secciones siguen visibles porque la base de datos permite leer lo que ya existe, pero no se registrarán nuevos pilotos, setups o respuestas de asistencia hasta que el límite se reinicie mañana. ¡Sentimos las molestias!"
+                    : `Se detectó un inconveniente al conectar con el servidor de la base de datos (${dbError.message}). Los datos cargados actualmente se mantendrán disponibles localmente en tu navegador de forma provisional.`}
+                </p>
+                <div className="mt-2.5 flex items-center gap-2 text-[10px] text-amber-400/80 font-mono uppercase">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                  Estado: Modo Consulta • Cuota diaria agotada en Spark Plan
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           
           {/* USER IS NOT LOGGED IN SPLASH SCREEN */}
@@ -1483,6 +1549,7 @@ export default function App() {
                   setups={setups}
                   onNavigate={(view) => setActiveTab(view as TabType)}
                   pilotsCount={officialPilotsCount}
+                  dbReadOnly={!!dbError?.hasError}
                 />
               )}
 
@@ -1492,6 +1559,7 @@ export default function App() {
                   news={news}
                   currentUserProfile={resolvedProfile}
                   isLoading={false}
+                  dbReadOnly={!!dbError?.hasError}
                 />
               )}
 
@@ -1510,6 +1578,7 @@ export default function App() {
                   currentUserProfile={resolvedProfile}
                   isLoading={false}
                   pilots={allUsers}
+                  dbReadOnly={!!dbError?.hasError}
                 />
               )}
 
@@ -1593,7 +1662,7 @@ export default function App() {
                             setSelectedCompareIds([idA, idB]);
                             setGarageView("compare");
                           }}
-                          readOnly={systemSettings.adminOnlySetups ? !isTeamAdmin : false}
+                          readOnly={dbError?.hasError || (systemSettings.adminOnlySetups ? !isTeamAdmin : false)}
                           isTeamAdmin={isTeamAdmin}
                           isApprovedMember={isApprovedMember}
                           currentUserId={firebaseUser?.uid}
@@ -1618,9 +1687,9 @@ export default function App() {
                             onAddNewField={handleAddNewField}
                             onDeleteField={handleDeleteField}
                             readOnly={
-                              systemSettings.adminOnlySetups 
+                              dbError?.hasError || (systemSettings.adminOnlySetups 
                                 ? !isTeamAdmin 
-                                : !(isTeamAdmin || !activeSetupDef.ownerId || activeSetupDef.ownerId === firebaseUser?.uid || activeSetupDef.ownerId === "default_user")
+                                : !(isTeamAdmin || !activeSetupDef.ownerId || activeSetupDef.ownerId === firebaseUser?.uid || activeSetupDef.ownerId === "default_user"))
                             }
                           />
                         ) : (
@@ -1661,6 +1730,7 @@ export default function App() {
                   currentUserProfile={resolvedProfile}
                   isLoading={false}
                   pilots={allUsers}
+                  dbReadOnly={!!dbError?.hasError}
                 />
               )}
 
@@ -1669,6 +1739,7 @@ export default function App() {
                 <GestionAdmin
                   users={allUsers}
                   isLoading={false}
+                  dbReadOnly={!!dbError?.hasError}
                 />
               )}
 
@@ -1677,6 +1748,7 @@ export default function App() {
                 <EvaluarPostulaciones
                   users={allUsers}
                   isLoading={false}
+                  dbReadOnly={!!dbError?.hasError}
                 />
               )}
 
@@ -1687,6 +1759,103 @@ export default function App() {
       </main>
 
 
+
+      {/* Welcome Onboarding Modal for New Users */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#111113] border border-stone-800 rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl relative my-8"
+            >
+              {/* Ambient Background Glows */}
+              <div className="absolute -top-40 -right-40 w-80 h-80 bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
+              <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+              <div className="space-y-6 relative z-10">
+                <div className="flex items-center gap-4 border-b border-stone-850 pb-5">
+                  <div className="p-3 bg-cyan-950/40 border border-cyan-500/30 rounded-2xl shrink-0">
+                    <ALRLogo size={48} className="drop-shadow-[0_0_12px_rgba(34,211,238,0.3)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg md:text-xl font-extrabold text-white tracking-tight font-display uppercase">
+                      ¡Bienvenido a <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">ALR Simracing</span>!
+                    </h3>
+                    <p className="text-[10px] text-stone-400 font-mono mt-1 uppercase tracking-wider">Apex Latam Racing Hub • Guía de Inicio</p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-stone-300 leading-relaxed font-sans">
+                  Te damos la bienvenida a nuestro paddock digital. Diseñamos esta plataforma exclusiva para gestionar y planificar de manera profesional el desempeño deportivo de nuestra escudería en pista.
+                </p>
+
+                <div className="space-y-4 pt-2">
+                  <p className="text-xs font-mono font-bold text-[#66FCF1] uppercase tracking-wider">Tu Camino como Piloto ALR:</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <div className="bg-[#18181b]/50 border border-stone-850 p-4 rounded-2xl flex gap-3">
+                      <span className="p-2 bg-yellow-950/20 text-yellow-500 border border-yellow-500/20 rounded-xl shrink-0 h-10 w-10 flex items-center justify-center font-bold text-sm">1</span>
+                      <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">Completa tu Ficha</h4>
+                        <p className="text-[11px] text-stone-400 mt-1 leading-relaxed">
+                          Ingresa a tu perfil, selecciona tus simuladores y coche preferido, y provee tu Steam ID. Es el primer paso obligatorio.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#18181b]/50 border border-stone-850 p-4 rounded-2xl flex gap-3">
+                      <span className="p-2 bg-cyan-950/20 text-cyan-400 border border-cyan-500/20 rounded-xl shrink-0 h-10 w-10 flex items-center justify-center font-bold text-sm">2</span>
+                      <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">Aprobación de Contrato</h4>
+                        <p className="text-[11px] text-stone-400 mt-1 leading-relaxed">
+                          Los Comisarios recibirán una alerta instantánea en Discord para revisar tu perfil y firmar tu contrato oficial.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#18181b]/50 border border-stone-850 p-4 rounded-2xl flex gap-3">
+                      <span className="p-2 bg-emerald-950/20 text-emerald-400 border border-emerald-500/20 rounded-xl shrink-0 h-10 w-10 flex items-center justify-center font-bold text-sm">3</span>
+                      <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">Garaje de Setups</h4>
+                        <p className="text-[11px] text-stone-400 mt-1 leading-relaxed">
+                          Accede a los setups colectivos oficiales de la escudería, compara telemetría y sube tus propios reglajes.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#18181b]/50 border border-stone-850 p-4 rounded-2xl flex gap-3">
+                      <span className="p-2 bg-fuchsia-950/20 text-fuchsia-400 border border-fuchsia-500/20 rounded-xl shrink-0 h-10 w-10 flex items-center justify-center font-bold text-sm">4</span>
+                      <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">Calendario y RSVP</h4>
+                        <p className="text-[11px] text-stone-400 mt-1 leading-relaxed">
+                          Mantente informado sobre las próximas carreras de liga y confirma tu asistencia para planificar estrategias.
+                        </p>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <div className="border-t border-stone-850 pt-5 flex items-center justify-between gap-4 flex-wrap md:flex-nowrap">
+                  <div className="flex items-center gap-2 text-[10px] text-stone-500 font-mono uppercase">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    Listo para correr • ALR Paddock v2.0
+                  </div>
+                  <button
+                    onClick={handleCloseOnboarding}
+                    className="bg-cyan-500 hover:bg-cyan-400 text-black px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg hover:shadow-cyan-500/10 cursor-pointer w-full md:w-auto"
+                  >
+                    Comenzar mi Carrera
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Decorative Paddock Footer */}
       <footer className="border-t border-[#1F1F23]/60 py-5 bg-[#0D0D10]/95 text-stone-500 text-[10.51px] font-mono mt-auto z-10 w-full select-none">

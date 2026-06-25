@@ -8,12 +8,14 @@ interface NoticiasProps {
   news: NewsItem[];
   currentUserProfile: UserProfile | null;
   isLoading: boolean;
+  dbReadOnly?: boolean;
 }
 
 export default function Noticias({
   news,
   currentUserProfile,
   isLoading,
+  dbReadOnly = false,
 }: NoticiasProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -26,7 +28,7 @@ export default function Noticias({
 
   const handleCreateNews = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin || !currentUserProfile) return;
+    if (!isAdmin || !currentUserProfile || dbReadOnly) return;
     setIsSubmitting(true);
 
     const newBulletin: Omit<NewsItem, "id"> = {
@@ -55,7 +57,7 @@ export default function Noticias({
   };
 
   const handleDeleteNews = async (id: string) => {
-    if (!isAdmin) return;
+    if (!isAdmin || dbReadOnly) return;
 
     const path = `news/${id}`;
     try {
@@ -172,12 +174,18 @@ export default function Noticias({
             </label>
           </div>
 
+          {dbReadOnly && (
+            <div className="p-2.5 bg-amber-950/25 border border-amber-900/35 text-amber-400 rounded-lg text-[11px] font-mono leading-relaxed">
+              ⚠️ La base de datos está en modo de solo lectura. No puedes publicar anuncios en este momento.
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || dbReadOnly}
             className="bg-cyan-500 hover:bg-cyan-400 text-black px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer"
           >
-            {isSubmitting ? "Publicando..." : "Publicar Ahora"}
+            {dbReadOnly ? "Solo Lectura" : isSubmitting ? "Publicando..." : "Publicar Ahora"}
           </button>
         </form>
       )}
@@ -222,9 +230,14 @@ export default function Noticias({
 
                 {isAdmin && (
                   <button
-                    onClick={() => handleDeleteNews(item.id)}
-                    className="p-1.5 text-stone-500 hover:text-red-400 bg-stone-900 hover:bg-red-950/20 rounded border border-stone-800 hover:border-red-900/50 transition-all cursor-pointer"
-                    title="Eliminar Noticia"
+                    onClick={() => !dbReadOnly && handleDeleteNews(item.id)}
+                    disabled={dbReadOnly}
+                    className={`p-1.5 rounded border transition-all ${
+                      dbReadOnly 
+                        ? "text-stone-700 bg-stone-950 border-stone-900 cursor-not-allowed opacity-40" 
+                        : "text-stone-500 hover:text-red-400 bg-stone-900 hover:bg-red-950/20 border-stone-800 hover:border-red-900/50 cursor-pointer"
+                    }`}
+                    title={dbReadOnly ? "No es posible eliminar en modo de solo lectura" : "Eliminar Noticia"}
                   >
                     <Trash className="w-3.5 h-3.5" />
                   </button>

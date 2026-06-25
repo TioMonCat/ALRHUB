@@ -8,11 +8,13 @@ import { COUNTRIES } from "../presets";
 interface EvaluarPostulacionesProps {
   users: UserProfile[];
   isLoading: boolean;
+  dbReadOnly?: boolean;
 }
 
 export default function EvaluarPostulaciones({
   users,
   isLoading,
+  dbReadOnly = false,
 }: EvaluarPostulacionesProps) {
   const [processingUid, setProcessingUid] = useState<string | null>(null);
   const [rejectingUid, setRejectingUid] = useState<string | null>(null);
@@ -22,6 +24,7 @@ export default function EvaluarPostulaciones({
   const candidates = users.filter((u) => u.role === "postulante" && u.status === "pendiente");
 
   const handleApprove = async (uid: string) => {
+    if (dbReadOnly) return;
     setProcessingUid(uid);
     const path = `users/${uid}`;
     try {
@@ -37,6 +40,7 @@ export default function EvaluarPostulaciones({
   };
 
   const handleReject = async (uid: string) => {
+    if (dbReadOnly) return;
     if (!rejectionReason.trim()) {
       alert("Debes ingresar un motivo para el rechazo.");
       return;
@@ -182,6 +186,12 @@ export default function EvaluarPostulaciones({
 
               {/* Actions Footer */}
               <div className="pt-2 border-t border-stone-800/60">
+                {dbReadOnly && (
+                  <div className="mb-3 p-2 bg-amber-950/25 border border-amber-900/35 text-amber-400 rounded-lg text-[10px] font-mono leading-relaxed">
+                    ⚠️ Solo lectura activo. No se pueden procesar postulaciones.
+                  </div>
+                )}
+
                 {rejectingUid === c.uid ? (
                   <div className="space-y-3">
                     <textarea
@@ -190,6 +200,7 @@ export default function EvaluarPostulaciones({
                       rows={2}
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
+                      disabled={dbReadOnly}
                     />
                     <div className="flex gap-2 justify-end">
                       <button
@@ -203,7 +214,7 @@ export default function EvaluarPostulaciones({
                       </button>
                       <button
                         onClick={() => handleReject(c.uid)}
-                        disabled={processingUid === c.uid}
+                        disabled={processingUid === c.uid || dbReadOnly}
                         className="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 px-4 py-1.5 rounded-lg font-mono font-bold uppercase tracking-wider text-[10.51px] transition-all cursor-pointer disabled:opacity-40"
                       >
                         Confirmar Rechazo
@@ -214,7 +225,7 @@ export default function EvaluarPostulaciones({
                   <div className="flex gap-3 justify-end">
                     <button
                       onClick={() => setRejectingUid(c.uid)}
-                      disabled={processingUid === c.uid}
+                      disabled={processingUid === c.uid || dbReadOnly}
                       className="px-3.5 py-1.5 rounded-lg font-mono font-bold uppercase tracking-wider text-red-400 border border-red-500/10 hover:bg-red-950/20 text-[10.51px] transition-all cursor-pointer disabled:opacity-40"
                     >
                       Rechazar
@@ -222,7 +233,7 @@ export default function EvaluarPostulaciones({
 
                     <button
                       onClick={() => handleApprove(c.uid)}
-                      disabled={processingUid === c.uid}
+                      disabled={processingUid === c.uid || dbReadOnly}
                       className="bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-1.5 rounded-lg font-mono font-bold uppercase tracking-wider text-[10.51px] transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40"
                     >
                       <Check className="w-3.5 h-3.5" />
