@@ -430,13 +430,6 @@ export default function App() {
                   mergedTemplates = mergedTemplates.map((t) => 
                     t.id === cloudTpl.id ? updatedCloudTpl : t
                   );
-                  // Also asynchronously update the database document back to the correct metadata
-                  setDoc(doc(db, templatesPath, cloudTpl.id), {
-                    ...updatedCloudTpl,
-                    ownerId: "default_user"
-                  }).catch((err) => {
-                    console.warn("Could not sync updated template to cloud:", err);
-                  });
                 } else {
                   mergedTemplates = mergedTemplates.map((t) => 
                     t.id === cloudTpl.id ? cloudTpl : t
