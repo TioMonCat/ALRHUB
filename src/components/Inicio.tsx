@@ -95,7 +95,7 @@ export default function Inicio({
 
   const handleUpdateApplication = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUserProfile) return;
+    if (!currentUserProfile || dbReadOnly) return;
     setIsUpdatingProfile(true);
     setSaveSuccess(false);
 

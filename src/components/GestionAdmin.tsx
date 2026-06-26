@@ -97,6 +97,21 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
         </p>
       </div>
 
+      {dbReadOnly && (
+        <div className="p-3.5 bg-red-950/25 border border-red-500/25 rounded-xl text-red-400 text-xs font-mono flex flex-col md:flex-row items-baseline md:items-center justify-between gap-3 shadow-md relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500" />
+          <div className="flex items-start gap-2.5 pl-1.5">
+            <span className="text-red-400 font-bold text-sm animate-pulse">⚠️</span>
+            <div className="space-y-0.5">
+              <p className="font-extrabold text-red-400 uppercase tracking-wider text-[10px]">CONSOLA EN MODO CONSULTA • CUOTA AGOTADA</p>
+              <p className="text-stone-300">
+                La cuota de escritura diaria de Firebase se ha completado. No puedes guardar cambios de piloto, reasignar roles, dorsales ni dar de baja pilotos temporalmente hoy.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {errorMsg && (
         <div className="p-3 bg-red-950/40 border border-red-900/50 rounded-lg text-red-200 text-xs font-mono flex items-center justify-between gap-3 animate-fade-in">
           <span>{errorMsg}</span>

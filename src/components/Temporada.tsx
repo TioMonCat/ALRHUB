@@ -818,22 +818,26 @@ export default function Temporada({
                     {isAdmin && (
                       <div className="absolute top-4 right-4 flex gap-1.5 select-none text-[8px] items-center">
                         <button
-                          onClick={() => handleOpenResultsForm(ev)}
-                          className="bg-emerald-950/40 text-emerald-400 border border-emerald-900/40 hover:bg-[#10B981]/20 px-2 py-1 rounded font-bold font-mono uppercase cursor-pointer"
+                          onClick={() => !dbReadOnly && handleOpenResultsForm(ev)}
+                          disabled={dbReadOnly}
+                          className="bg-emerald-950/40 text-emerald-400 border border-emerald-900/40 hover:bg-[#10B981]/20 px-2 py-1 rounded font-bold font-mono uppercase cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={dbReadOnly ? "Modo solo lectura" : "Cargar Podio"}
                         >
                           Cargar Podio
                         </button>
                         <button
-                          onClick={() => handleStartEdit(ev)}
-                          className="bg-stone-900 text-stone-400 hover:text-[#06B6D4] border border-stone-800 hover:border-[#0891B2]/30 p-1.5 rounded cursor-pointer transition-colors"
-                          title="Editar evento"
+                          onClick={() => !dbReadOnly && handleStartEdit(ev)}
+                          disabled={dbReadOnly}
+                          className="bg-stone-900 text-stone-400 hover:text-[#06B6D4] border border-stone-800 hover:border-[#0891B2]/30 p-1.5 rounded cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={dbReadOnly ? "Modo solo lectura" : "Editar evento"}
                         >
                           <Edit3 className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={() => handleDeleteEvent(ev.id)}
-                          className="bg-stone-900 text-stone-400 hover:text-red-400 border border-stone-800 hover:border-red-950/40 p-1.5 rounded cursor-pointer transition-colors"
-                          title="Eliminar evento"
+                          onClick={() => !dbReadOnly && handleDeleteEvent(ev.id)}
+                          disabled={dbReadOnly}
+                          className="bg-stone-900 text-stone-400 hover:text-red-400 border border-stone-800 hover:border-red-950/40 p-1.5 rounded cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={dbReadOnly ? "Modo solo lectura" : "Eliminar evento"}
                         >
                           <Trash className="w-3 h-3" />
                         </button>
@@ -925,16 +929,18 @@ export default function Temporada({
                       {isAdmin && (
                         <div className="flex gap-1.5 items-center">
                           <button
-                            onClick={() => handleStartEdit(ev)}
-                            className="bg-stone-900 text-stone-400 hover:text-[#06B6D4] border border-stone-800 hover:border-[#0891B2]/30 p-1.5 rounded cursor-pointer transition-colors"
-                            title="Editar carrera y resultados"
+                            onClick={() => !dbReadOnly && handleStartEdit(ev)}
+                            disabled={dbReadOnly}
+                            className="bg-stone-900 text-stone-400 hover:text-[#06B6D4] border border-stone-800 hover:border-[#0891B2]/30 p-1.5 rounded cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={dbReadOnly ? "Modo solo lectura" : "Editar carrera y resultados"}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteEvent(ev.id)}
-                            className="bg-stone-900 text-stone-400 hover:text-red-400 border border-stone-800 hover:border-red-950/40 p-1.5 rounded cursor-pointer transition-colors"
-                            title="Eliminar evento"
+                            onClick={() => !dbReadOnly && handleDeleteEvent(ev.id)}
+                            disabled={dbReadOnly}
+                            className="bg-stone-900 text-stone-400 hover:text-red-400 border border-stone-800 hover:border-red-950/40 p-1.5 rounded cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={dbReadOnly ? "Modo solo lectura" : "Eliminar evento"}
                           >
                             <Trash className="w-3.5 h-3.5" />
                           </button>

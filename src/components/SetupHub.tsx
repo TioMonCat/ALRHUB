@@ -337,7 +337,7 @@ export default function SetupHub({
           {isCompareMode ? "Desactivar Comparar" : "Modo Comparar"}
         </button>
 
-        {!readOnly && (
+        {!readOnly && !dbReadOnly && (
           <button
             onClick={() => setIsCreating(true)}
             className="px-4 py-2 bg-[#FF3C3C] hover:bg-red-500 text-black font-mono font-extrabold text-2xs sm:text-xs rounded transition-all flex items-center gap-1.5 shadow-md shadow-red-500/10 uppercase tracking-wider cursor-pointer font-black"
@@ -757,19 +757,20 @@ export default function SetupHub({
 
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
+                          disabled={dbReadOnly}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onToggleFavorite(setup.id);
+                            if (!dbReadOnly) onToggleFavorite(setup.id);
                           }}
-                          className={`p-1 rounded bg-[#0A0A0B]/80 hover:bg-[#0A0A0B] transition-colors cursor-pointer ${
+                          className={`p-1 rounded bg-[#0A0A0B]/80 hover:bg-[#0A0A0B] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                             setup.isFavorite ? "text-[#FF3C3C]" : "text-stone-500 hover:text-[#FF3C3C]"
                           }`}
-                          title={setup.isFavorite ? "Quitar de favoritos" : "Marcar favorito"}
+                          title={dbReadOnly ? "No disponible en modo solo lectura" : setup.isFavorite ? "Quitar de favoritos" : "Marcar favorito"}
                         >
                           <Star className={`w-3.5 h-3.5 ${setup.isFavorite ? "fill-[#FF3C3C]" : ""}`} />
                         </button>
 
-                        {!readOnly && (isTeamAdmin || !setup.ownerId || setup.ownerId === currentUserId || setup.ownerId === "default_user") && (
+                        {!readOnly && !dbReadOnly && (isTeamAdmin || !setup.ownerId || setup.ownerId === currentUserId || setup.ownerId === "default_user") && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

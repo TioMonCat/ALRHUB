@@ -568,9 +568,10 @@ export default function SetupDetail({
   onDeleteSection,
   onAddNewField,
   onDeleteField,
-  readOnly = false,
+  readOnly: passedReadOnly = false,
   dbReadOnly = false,
 }: SetupDetailProps) {
+  const readOnly = passedReadOnly || dbReadOnly;
   const [values, setValues] = useState<Record<string, string>>({ ...setup.values });
 
   const effectiveSections = setup.customSections || template.sections;
