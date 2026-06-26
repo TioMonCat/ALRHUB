@@ -555,6 +555,7 @@ interface SetupDetailProps {
   onAddNewField: (sectionId: string, field: Omit<SetupField, "id">) => void;
   onDeleteField: (sectionId: string, fieldId: string) => void;
   readOnly?: boolean;
+  dbReadOnly?: boolean;
 }
 
 export default function SetupDetail({
@@ -568,6 +569,7 @@ export default function SetupDetail({
   onAddNewField,
   onDeleteField,
   readOnly = false,
+  dbReadOnly = false,
 }: SetupDetailProps) {
   const [values, setValues] = useState<Record<string, string>>({ ...setup.values });
 
@@ -962,16 +964,18 @@ export default function SetupDetail({
       </div>
 
       {/* Permission Status Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-stone-900 border border-stone-850 rounded-xl">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 border rounded-xl ${dbReadOnly ? "bg-red-950/20 border-red-500/25" : "bg-stone-900 border-stone-850"}`}>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${readOnly ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse"}`} />
-          <span className="text-xs font-mono font-bold text-stone-200">
-            {readOnly ? "MODO LECTURA" : "MODO EDICIÓN ACTIVO"}
+          <div className={`w-2 h-2 rounded-full ${dbReadOnly ? "bg-red-500 animate-pulse" : readOnly ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse"}`} />
+          <span className={`text-xs font-mono font-bold ${dbReadOnly ? "text-red-400" : "text-stone-200"}`}>
+            {dbReadOnly ? "MODO SOLO LECTURA (BASE DE DATOS BLOQUEADA)" : readOnly ? "MODO LECTURA" : "MODO EDICIÓN ACTIVO"}
           </span>
           <span className="text-[11px] text-stone-400 font-mono hidden md:inline">
-            {readOnly 
-              ? `• Este reglamento es propiedad de ${setup.creatorName || "otro piloto"} (solo lectura)` 
-              : `• Eres dueño de este reglamento o cuentas con permisos de Administrador`
+            {dbReadOnly
+              ? "• El servidor de base de datos ha superado la cuota de escritura diaria. No se guardarán los cambios de telemetría."
+              : readOnly 
+                ? `• Este reglamento es propiedad de ${setup.creatorName || "otro piloto"} (solo lectura)` 
+                : `• Eres dueño de este reglamento o cuentas con permisos de Administrador`
             }
           </span>
         </div>

@@ -1669,6 +1669,7 @@ export default function App() {
                           onCreateTemplate={handleCreateTemplate}
                           onDeleteTemplate={handleDeleteTemplate}
                           onUpdateTemplate={handleUpdateTemplate}
+                          dbReadOnly={!!dbError?.hasError}
                         />
                       </motion.div>
                     )}
@@ -1691,6 +1692,7 @@ export default function App() {
                                 ? !isTeamAdmin 
                                 : !(isTeamAdmin || !activeSetupDef.ownerId || activeSetupDef.ownerId === firebaseUser?.uid || activeSetupDef.ownerId === "default_user"))
                             }
+                            dbReadOnly={!!dbError?.hasError}
                           />
                         ) : (
                           <div className="flex flex-col items-center justify-center p-12 text-stone-500">

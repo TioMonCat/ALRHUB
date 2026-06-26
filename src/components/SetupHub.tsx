@@ -28,6 +28,7 @@ interface SetupHubProps {
   onCreateTemplate?: (title: string, description: string) => void;
   onDeleteTemplate?: (id: string) => void;
   onUpdateTemplate?: (updatedTpl: SetupTemplate) => void;
+  dbReadOnly?: boolean;
 }
 
 export default function SetupHub({
@@ -46,6 +47,7 @@ export default function SetupHub({
   onCreateTemplate,
   onDeleteTemplate,
   onUpdateTemplate,
+  dbReadOnly = false,
 }: SetupHubProps) {
   const [search, setSearch] = useState("");
   const [selectedGameFilter, setSelectedGameFilter] = useState("Todos");
@@ -290,8 +292,21 @@ export default function SetupHub({
 
   return (
     <div className="w-full space-y-6">
-      {/* Banner de Modo Vista para Postulantes */}
-      {readOnly && (
+      {/* Banner de Modo Vista para Postulantes o Modo Solo Lectura de Base de Datos */}
+      {dbReadOnly ? (
+        <div className="bg-red-950/25 border border-red-500/25 p-4 rounded-xl text-red-400 font-mono text-xs flex flex-col sm:flex-row items-baseline sm:items-center justify-between gap-3 shadow-lg relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500" />
+          <div className="flex items-start gap-2.5 pl-1.5">
+            <span className="text-red-400 font-bold text-sm animate-pulse">⚠️</span>
+            <div className="space-y-1">
+              <p className="font-extrabold text-red-400 uppercase tracking-wider text-[10px]">LÍMITE DE ESCRITURA EXCEDIDO • MODO SOLO LECTURA ACTIVO</p>
+              <p className="text-stone-300">
+                La base de datos está congelada temporalmente hoy por límite de cuota. Los setups actuales son visibles y comparables, pero <strong>no se pueden guardar nuevas modificaciones, renames ni borrar reglajes</strong> en el servidor por hoy.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : readOnly ? (
         <div className="bg-amber-950/20 border border-amber-500/25 p-4 rounded-xl text-amber-400 font-mono text-xs flex flex-col sm:flex-row items-baseline sm:items-center justify-between gap-3 shadow-lg">
           <div className="flex items-start gap-2.5">
             <span className="text-amber-500 font-bold text-sm">⚠️</span>
@@ -301,7 +316,7 @@ export default function SetupHub({
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Upper Control Console */}
       <div className="flex justify-end gap-3 mb-4" id="control-console">
