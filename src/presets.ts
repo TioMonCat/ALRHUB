@@ -320,6 +320,7 @@ export const POPULAR_GAMES = [
 export const POPULAR_TRACKS = [
   "Spa-Francorchamps",
   "Monza",
+  "Fuji Speedway",
   "Nürburgring Nordschleife",
   "Nürburgring GP",
   "Silverstone",
