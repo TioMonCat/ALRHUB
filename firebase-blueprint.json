@@ -105,6 +105,26 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "eventId", "userId", "userName", "status", "updatedAt"]
+    },
+    "TelemetrySession": {
+      "title": "TelemetrySession",
+      "description": "A single telemetry session recorded by the external tracker.",
+      "type": "object",
+      "properties": {
+        "pilotUid": { "type": "string" },
+        "pilotName": { "type": "string" },
+        "simulator": { "type": "string" },
+        "carModel": { "type": "string" },
+        "trackName": { "type": "string" },
+        "lapsCompleted": { "type": "number" },
+        "position": { "type": "number" },
+        "bestLapTimeSeconds": { "type": "number" },
+        "bestLapTimeFormatted": { "type": "string" },
+        "totalDistanceKm": { "type": "number" },
+        "incidentsCount": { "type": "number" },
+        "sessionTimestamp": { "type": "string" }
+      },
+      "required": ["pilotUid", "pilotName", "simulator", "carModel", "trackName", "lapsCompleted", "position", "bestLapTimeSeconds", "bestLapTimeFormatted", "totalDistanceKm", "incidentsCount"]
     }
   },
   "firestore": {
@@ -131,6 +151,10 @@
     "attendance/{attendanceId}": {
       "schema": "EventAttendance",
       "description": "Pilot RSVP schedules for championship events."
+    },
+    "telemetry_sessions/{sessionId}": {
+      "schema": "TelemetrySession",
+      "description": "Track telemetry logs uploaded by the external C# app."
     }
   }
 }

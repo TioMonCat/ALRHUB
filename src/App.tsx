@@ -44,8 +44,8 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 
 // Firebase
-import { auth, db, googleProvider, OperationType, handleFirestoreError } from "./firebase";
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
+import { auth, db, googleProvider, OperationType, handleFirestoreError, recalculateAndUpdatePilotStats } from "./firebase";
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendEmailVerification, sendPasswordResetEmail } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, getDoc, addDoc } from "firebase/firestore";
 
 const sanitizeForFirestore = <T,>(data: T): T => {
@@ -246,6 +246,21 @@ export default function App() {
 
     return () => unsubscribeAuth();
   }, []);
+
+  // 1.1 RECALCULATE STATS AUTOMATICALLY FOR CURRENT USER & SELECTED PILOT PROFILE
+  useEffect(() => {
+    if (!firebaseUser) return;
+    recalculateAndUpdatePilotStats(firebaseUser.uid).catch((err) => {
+      console.warn("Error background-calculating logged-in user stats:", err);
+    });
+  }, [firebaseUser?.uid]);
+
+  useEffect(() => {
+    if (!firebaseUser || !selectedPilotId) return;
+    recalculateAndUpdatePilotStats(selectedPilotId).catch((err) => {
+      console.warn("Error background-calculating selected pilot stats:", err);
+    });
+  }, [selectedPilotId, firebaseUser]);
 
   // 2. SUBSCRIBE TO CENTRAL DATABASES (Only if authenticated)
   useEffect(() => {
@@ -975,6 +990,32 @@ export default function App() {
     }
   };
 
+  // Password Recovery handler
+  const handleForgotPassword = async () => {
+    setAuthError("");
+    setAuthSuccess("");
+    if (!authEmail) {
+      setAuthError("Por favor, escribe tu correo electrónico en el campo correspondiente antes de solicitar la recuperación.");
+      return;
+    }
+    setIsLoadingAuth(true);
+    try {
+      await sendPasswordResetEmail(auth, authEmail);
+      setAuthSuccess(`Se ha enviado un enlace para restablecer tu contraseña a ${authEmail}. Por favor, revisa tu bandeja de entrada o carpeta de spam.`);
+    } catch (error: any) {
+      console.error("Password reset error:", error);
+      let friendlyMessage = `Error al enviar correo de recuperación: ${error.message || error}`;
+      if (error.code === "auth/user-not-found") {
+        friendlyMessage = "No se encontró ningún piloto registrado con esta dirección de correo electrónico.";
+      } else if (error.code === "auth/invalid-email") {
+        friendlyMessage = "La dirección de correo electrónico introducida no es válida.";
+      }
+      setAuthError(friendlyMessage);
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  };
+
   // 5. CONTEXT RESOLUTION OF CURRENT LOGGED-IN ROLES & OVERWRITES
   const getSimulatedProfile = (): UserProfile | null => {
     if (simulatedRole && simulatedRole !== "real") {
@@ -1394,9 +1435,20 @@ export default function App() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400">
-                      Contraseña
-                    </label>
+                    <div className="flex justify-between items-center">
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400">
+                        Contraseña
+                      </label>
+                      {!isSignUpMode && (
+                        <button
+                          type="button"
+                          onClick={handleForgotPassword}
+                          className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-all cursor-pointer bg-transparent border-0 p-0 hover:underline"
+                        >
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="password"
                       required

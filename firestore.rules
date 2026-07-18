@@ -92,6 +92,12 @@ service cloud.firestore {
       allow write: if isAuth() && (request.resource.data.userId == request.auth.uid || isAppAdmin());
       allow delete: if isAuth() && (resource.data.userId == request.auth.uid || isAppAdmin());
     }
+
+    match /telemetry_sessions/{docId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (request.resource.data.pilotUid == request.auth.uid || isAppAdmin());
+      allow update, delete: if isAppAdmin();
+    }
   }
 }
 
