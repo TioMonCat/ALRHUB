@@ -140,3 +140,19 @@ export interface AttendanceRecord {
   comments?: string;
   updatedAt: string;
 }
+
+export interface Poll {
+  id: string;
+  question: string;
+  description?: string;
+  type: "single" | "multiple" | "text";
+  options?: string[]; // Optional for open text polls
+  votes: Record<string, any>; // maps userId -> value (number for single, number[] for multiple, string for text)
+  allowedRoles?: string[]; // e.g. ["admin", "piloto", "postulante"]
+  allowedSimulators?: string[]; // e.g. ["Assetto Corsa", "Le Mans Ultimate", "Ambos"]
+  allowedClasses?: string[]; // e.g. ["GT3", "LMP2", "Reserva"]
+  createdAt: string;
+  creatorId: string;
+  creatorName: string;
+  isClosed?: boolean;
+}

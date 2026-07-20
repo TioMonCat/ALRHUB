@@ -77,6 +77,28 @@ service cloud.firestore {
       allow write: if isAppAdmin();
     }
 
+    match /polls/{docId} {
+      allow read: if isAuth();
+      allow create: if isAppAdmin();
+      allow update: if isAuth() && (
+        isAppAdmin() || (
+          incoming().question == existing().question &&
+          incoming().get('options', []) == existing().get('options', []) &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().creatorId == existing().creatorId &&
+          incoming().creatorName == existing().creatorName &&
+          incoming().get('isClosed', false) == existing().get('isClosed', false) &&
+          incoming().get('type', 'single') == existing().get('type', 'single') &&
+          incoming().get('description', '') == existing().get('description', '') &&
+          incoming().get('allowedRoles', []) == existing().get('allowedRoles', []) &&
+          incoming().get('allowedSimulators', []) == existing().get('allowedSimulators', []) &&
+          incoming().get('allowedClasses', []) == existing().get('allowedClasses', []) &&
+          !existing().get('isClosed', false)
+        )
+      );
+      allow delete: if isAppAdmin();
+    }
+
     match /events/{docId} {
       allow read: if isAuth();
       allow write: if isAppAdmin();

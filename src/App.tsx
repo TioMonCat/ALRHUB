@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CarSetup, SetupTemplate, SetupSection, SetupField, FieldType, UserProfile, NewsItem, TeamEvent, AttendanceRecord } from "./types";
+import { CarSetup, SetupTemplate, SetupSection, SetupField, FieldType, UserProfile, NewsItem, TeamEvent, AttendanceRecord, Poll } from "./types";
 import { DEFAULT_TEMPLATES, LE_MANS_ULTIMATE_GT3_TEMPLATE } from "./presets";
 import SetupHub from "./components/SetupHub";
 import SetupDetail from "./components/SetupDetail";
@@ -88,6 +88,7 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [systemSettings, setSystemSettings] = useState({ adminOnlySetups: false });
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [polls, setPolls] = useState<Poll[]>([]);
   const [events, setEvents] = useState<TeamEvent[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
@@ -385,11 +386,26 @@ export default function App() {
       handleDatabaseListenerError(error);
     });
 
+    // Polls listener
+    const unsubscribePolls = onSnapshot(collection(db, "polls"), (snapshot) => {
+      const pollList: Poll[] = [];
+      snapshot.forEach((doc) => {
+        pollList.push({ id: doc.id, ...doc.data() } as Poll);
+      });
+      pollList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setPolls(pollList);
+    }, (error) => {
+      console.error("Polls onSnapshot error:", error);
+      setIsLoadingPortal(false);
+      handleDatabaseListenerError(error);
+    });
+
     return () => {
       unsubscribeProfile();
       unsubscribeUsers();
       unsubscribeSettings();
       unsubscribeNews();
+      unsubscribePolls();
       unsubscribeEvents();
       unsubscribeAttendance();
     };
@@ -1689,6 +1705,7 @@ export default function App() {
               {activeTab === "noticias" && (
                 <Noticias
                   news={news}
+                  polls={polls}
                   currentUserProfile={resolvedProfile}
                   isLoading={false}
                   dbReadOnly={!!dbError?.hasError}

@@ -125,6 +125,27 @@
         "sessionTimestamp": { "type": "string" }
       },
       "required": ["pilotUid", "pilotName", "simulator", "carModel", "trackName", "lapsCompleted", "position", "bestLapTimeSeconds", "bestLapTimeFormatted", "totalDistanceKm", "incidentsCount"]
+    },
+    "ClubPoll": {
+      "title": "ClubPoll",
+      "description": "A community poll or survey designed by administrators for driver voting.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["single", "multiple", "text"] },
+        "options": { "type": "array" },
+        "votes": { "type": "object" },
+        "allowedRoles": { "type": "array", "items": { "type": "string" } },
+        "allowedSimulators": { "type": "array", "items": { "type": "string" } },
+        "allowedClasses": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "isClosed": { "type": "boolean" }
+      },
+      "required": ["id", "question", "type", "votes", "createdAt", "creatorId", "creatorName"]
     }
   },
   "firestore": {
@@ -155,6 +176,10 @@
     "telemetry_sessions/{sessionId}": {
       "schema": "TelemetrySession",
       "description": "Track telemetry logs uploaded by the external C# app."
+    },
+    "polls/{pollId}": {
+      "schema": "ClubPoll",
+      "description": "Community polls and driver voting records."
     }
   }
 }
