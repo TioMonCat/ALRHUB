@@ -30,7 +30,7 @@ export const FIELD_TO_INI_MAP: Record<string, FieldMapping> = {
   "abs": { iniSection: "ABS", iniKey: "VALUE" },
 
   // Aero
-  "rear_wing": { iniSection: "WING_2", iniKey: "VALUE" },
+  "rear_wing": { iniSection: "WING_3", iniKey: "VALUE" },
   "rear_wing_lmp": { iniSection: "WING_2", iniKey: "VALUE" },
 
   // Alignment
@@ -91,8 +91,10 @@ export const FIELD_TO_INI_MAP: Record<string, FieldMapping> = {
   "diff_power": { iniSection: "DIFF_POWER", iniKey: "VALUE" },
   "diff_preload": { iniSection: "DIFF_PRELOAD", iniKey: "VALUE" },
   "diff_coast": { iniSection: "DIFF_COAST", iniKey: "VALUE" },
+  "gears": { iniSection: "FINAL_RATIO", iniKey: "VALUE" },
 
   "diff_power_lmp": { iniSection: "DIFF_POWER", iniKey: "VALUE" },
+  "diff_preload_lmp": { iniSection: "DIFF_PRELOAD", iniKey: "VALUE" },
   "diff_coast_lmp": { iniSection: "DIFF_COAST", iniKey: "VALUE" },
   "gears_lmp": { iniSection: "FINAL_RATIO", iniKey: "VALUE" },
 
@@ -101,7 +103,9 @@ export const FIELD_TO_INI_MAP: Record<string, FieldMapping> = {
   "brake_bias": { iniSection: "FRONT_BIAS", iniKey: "VALUE" },
   "brake_power": { iniSection: "BRAKE_POWER_MULT", iniKey: "VALUE" },
 
+  "engine_limiter_lmp": { iniSection: "ENGINE_LIMITER", iniKey: "VALUE" },
   "brake_bias_lmp": { iniSection: "FRONT_BIAS", iniKey: "VALUE" },
+  "steer_assist_lmp": { iniSection: "STEER_ASSIST", iniKey: "VALUE" },
   "brake_power_lmp": { iniSection: "BRAKE_POWER_MULT", iniKey: "VALUE" },
 
   // Suspension
@@ -119,6 +123,8 @@ export const FIELD_TO_INI_MAP: Record<string, FieldMapping> = {
   "wheel_rate_rf_lmp": { iniSection: "SPRING_RATE_RF", iniKey: "VALUE" },
   "wheel_rate_lr_lmp": { iniSection: "SPRING_RATE_LR", iniKey: "VALUE" },
   "wheel_rate_rr_lmp": { iniSection: "SPRING_RATE_RR", iniKey: "VALUE" },
+  "wheel_rate_hf_lmp": { iniSection: "SPRING_RATE_HF", iniKey: "VALUE" },
+  "wheel_rate_hr_lmp": { iniSection: "SPRING_RATE_HR", iniKey: "VALUE" },
 
   "height_lf": { iniSection: "ROD_LENGTH_LF", iniKey: "VALUE" },
   "height_rf": { iniSection: "ROD_LENGTH_RF", iniKey: "VALUE" },
@@ -141,11 +147,11 @@ export const FIELD_TO_INI_MAP: Record<string, FieldMapping> = {
   "fst_bump_r_heave": { iniSection: "DAMP_FAST_BUMP_HR", iniKey: "VALUE" },
   "fst_rebound_r_heave": { iniSection: "DAMP_FAST_REBOUND_HR", iniKey: "VALUE" },
 
-  // Suspension Adv
-  "packer_rate_lf_lmp": { iniSection: "BUMP_STOP_RATE_LF", iniKey: "VALUE" },
-  "packer_rate_rf_lmp": { iniSection: "BUMP_STOP_RATE_RF", iniKey: "VALUE" },
-  "packer_rate_lr_lmp": { iniSection: "BUMP_STOP_RATE_LR", iniKey: "VALUE" },
-  "packer_rate_rr_lmp": { iniSection: "BUMP_STOP_RATE_RR", iniKey: "VALUE" },
+  // Suspension Adv / Bumpstop
+  "bumpstop_rate_f_lmp": { iniSection: "BUMPSTOP_LF", iniKey: "VALUE" },
+  "bumpstop_rate_r_lmp": { iniSection: "BUMPSTOP_LR", iniKey: "VALUE" },
+  "bumpstop_rate_f": { iniSection: "BUMPSTOP_LF", iniKey: "VALUE" },
+  "bumpstop_rate_r": { iniSection: "BUMPSTOP_LR", iniKey: "VALUE" },
 
   "travel_range_lf_lmp": { iniSection: "PACKER_RANGE_LF", iniKey: "VALUE" },
   "travel_range_rf_lmp": { iniSection: "PACKER_RANGE_RF", iniKey: "VALUE" },
@@ -223,16 +229,27 @@ export function mapIniToSetupValues(
     const mapping = FIELD_TO_INI_MAP[fieldId];
     if (rawValues[mapping.iniSection] && rawValues[mapping.iniSection][mapping.iniKey] !== undefined) {
       let rawVal = rawValues[mapping.iniSection][mapping.iniKey];
-      if (fieldId === "compound" && rawVal === "0") {
-        rawVal = "Medium slick (m)";
-      } else if (fieldId === "compound" && rawVal === "1") {
-        rawVal = "Rain (wet)";
-      } else if (fieldId === "compound_lmp" && rawVal === "0") {
-        rawVal = "LMP Medium (MED)";
+      if (fieldId === "compound") {
+        if (rawVal === "0") rawVal = "Michelin SBM (SBM)";
+        else if (rawVal === "1") rawVal = "Rain (WET)";
+      } else if (fieldId === "gears") {
+        if (rawVal === "0") rawVal = "Short";
+        else if (rawVal === "1") rawVal = "Standard";
+        else if (rawVal === "2") rawVal = "Long";
+      } else if (fieldId === "compound_lmp") {
+        if (rawVal === "0") rawVal = "Medium (M)";
+        else if (rawVal === "1") rawVal = "Rain (WET)";
       } else if (fieldId === "gears_lmp") {
-        if (rawVal === "0") rawVal = "10/32";
-        else if (rawVal === "1") rawVal = "10/30";
-        else if (rawVal === "2") rawVal = "10/28";
+        if (rawVal === "0") rawVal = "Short";
+        else if (rawVal === "1") rawVal = "Medium";
+        else if (rawVal === "2") rawVal = "Long";
+        else if (rawVal === "3") rawVal = "Le Mans";
+      } else if (fieldId === "bumpstop_rate_f_lmp" || fieldId === "bumpstop_rate_r_lmp") {
+        if (rawVal === "0") rawVal = "Soft";
+        else if (rawVal === "1") rawVal = "Stiff";
+      } else if (fieldId === "bumpstop_rate_f" || fieldId === "bumpstop_rate_r") {
+        if (rawVal === "0") rawVal = "Stiff";
+        else if (rawVal === "1") rawVal = "Soft";
       }
       result[fieldId] = rawVal;
     }
@@ -357,79 +374,144 @@ export const CORE_AC_SECTIONS: Record<string, string> = {
   WING_2: "2"
 };
 
-export const CORE_LMP2_SECTIONS: Record<string, string> = {
-  ARB_FRONT: "2",
-  ARB_REAR: "0",
+export const CORE_GT3_SECTIONS: Record<string, string> = {
+  ARB_FRONT: "50000",
+  ARB_REAR: "30000",
   BRAKE_POWER_MULT: "100",
-  BUMP_STOP_RATE_LF: "150",
-  BUMP_STOP_RATE_LR: "150",
-  BUMP_STOP_RATE_RF: "150",
-  BUMP_STOP_RATE_RR: "150",
-  CAMBER_LF: "-20",
-  CAMBER_LR: "-15",
-  CAMBER_RF: "-20",
-  CAMBER_RR: "-15",
-  DAMP_BUMP_HF: "14",
-  DAMP_BUMP_HR: "15",
-  DAMP_BUMP_LF: "10",
-  DAMP_BUMP_LR: "13",
-  DAMP_BUMP_RF: "10",
-  DAMP_BUMP_RR: "13",
-  DAMP_FAST_BUMP_HF: "10",
-  DAMP_FAST_BUMP_HR: "7",
-  DAMP_FAST_BUMP_LF: "7",
-  DAMP_FAST_BUMP_LR: "10",
-  DAMP_FAST_BUMP_RF: "7",
-  DAMP_FAST_BUMP_RR: "10",
-  DAMP_FAST_REBOUND_HF: "18",
-  DAMP_FAST_REBOUND_HR: "14",
-  DAMP_FAST_REBOUND_LF: "15",
-  DAMP_FAST_REBOUND_LR: "15",
-  DAMP_FAST_REBOUND_RF: "15",
-  DAMP_FAST_REBOUND_RR: "15",
-  DAMP_REBOUND_HF: "19",
-  DAMP_REBOUND_HR: "16",
-  DAMP_REBOUND_LF: "10",
-  DAMP_REBOUND_LR: "8",
-  DAMP_REBOUND_RF: "10",
-  DAMP_REBOUND_RR: "8",
-  DIFF_COAST: "50",
-  DIFF_POWER: "10",
-  FINAL_RATIO: "2",
-  FRONT_BIAS: "60",
-  FUEL: "20",
-  PACKER_RANGE_LF: "50",
-  PACKER_RANGE_LR: "50",
-  PACKER_RANGE_RF: "50",
-  PACKER_RANGE_RR: "50",
-  PRESSURE_LF: "25",
-  PRESSURE_LR: "25",
-  PRESSURE_RF: "25",
-  PRESSURE_RR: "25",
-  ROD_LENGTH_LF: "6",
-  ROD_LENGTH_LR: "7",
-  ROD_LENGTH_RF: "6",
-  ROD_LENGTH_RR: "7",
-  SPRING_RATE_HF: "4",
-  SPRING_RATE_HR: "5",
-  SPRING_RATE_LF: "2",
-  SPRING_RATE_LR: "4",
-  SPRING_RATE_RF: "2",
-  SPRING_RATE_RR: "4",
-  TOE_OUT_LF: "8",
-  TOE_OUT_LR: "13",
-  TOE_OUT_RF: "8",
-  TOE_OUT_RR: "13",
-  TRACTION_CONTROL: "1",
+  BUMPSTOP_LF: "1",
+  BUMPSTOP_LR: "1",
+  BUMPSTOP_RF: "1",
+  BUMPSTOP_RR: "1",
+  CAMBER_LF: "-30",
+  CAMBER_LR: "-25",
+  CAMBER_RF: "-30",
+  CAMBER_RR: "-25",
+  DAMP_BUMP_LF: "13000",
+  DAMP_BUMP_LR: "13000",
+  DAMP_BUMP_RF: "13000",
+  DAMP_BUMP_RR: "13000",
+  DAMP_FAST_BUMP_LF: "5000",
+  DAMP_FAST_BUMP_LR: "5000",
+  DAMP_FAST_BUMP_RF: "5000",
+  DAMP_FAST_BUMP_RR: "5000",
+  DAMP_FAST_REBOUND_LF: "5000",
+  DAMP_FAST_REBOUND_LR: "5000",
+  DAMP_FAST_REBOUND_RF: "5000",
+  DAMP_FAST_REBOUND_RR: "5000",
+  DAMP_REBOUND_LF: "17000",
+  DAMP_REBOUND_LR: "17000",
+  DAMP_REBOUND_RF: "17000",
+  DAMP_REBOUND_RR: "17000",
+  DIFF_COAST: "30",
+  DIFF_POWER: "20",
+  DIFF_PRELOAD: "90",
+  ENGINE_LIMITER: "100",
+  FINAL_RATIO: "1",
+  FRONT_BIAS: "66",
+  FUEL: "100",
+  PACKER_RANGE_LF: "71",
+  PACKER_RANGE_LR: "75",
+  PACKER_RANGE_RF: "71",
+  PACKER_RANGE_RR: "75",
+  PRESSURE_LF: "20",
+  PRESSURE_LR: "18",
+  PRESSURE_RF: "20",
+  PRESSURE_RR: "18",
+  ROD_LENGTH_LF: "21",
+  ROD_LENGTH_LR: "21",
+  ROD_LENGTH_RF: "21",
+  ROD_LENGTH_RR: "21",
+  SPRING_RATE_LF: "130",
+  SPRING_RATE_LR: "130",
+  SPRING_RATE_RF: "130",
+  SPRING_RATE_RR: "130",
+  TOE_OUT_LF: "11",
+  TOE_OUT_LR: "14",
+  TOE_OUT_RF: "11",
+  TOE_OUT_RR: "14",
+  TRACTION_CONTROL: "6",
+  ABS: "8",
   TYRES: "0",
-  WING_2: "4"
+  WING_3: "3"
+};
+
+export const CORE_LMP2_SECTIONS: Record<string, string> = {
+  ARB_FRONT: "55000",
+  ARB_REAR: "25000",
+  BRAKE_POWER_MULT: "100",
+  BUMPSTOP_LF: "1",
+  BUMPSTOP_LR: "0",
+  BUMPSTOP_RF: "1",
+  BUMPSTOP_RR: "0",
+  CAMBER_LF: "-10",
+  CAMBER_LR: "-10",
+  CAMBER_RF: "-10",
+  CAMBER_RR: "-10",
+  DAMP_BUMP_HF: "2750",
+  DAMP_BUMP_HR: "2750",
+  DAMP_BUMP_LF: "13000",
+  DAMP_BUMP_LR: "12500",
+  DAMP_BUMP_RF: "13000",
+  DAMP_BUMP_RR: "12500",
+  DAMP_FAST_BUMP_HF: "500",
+  DAMP_FAST_BUMP_HR: "250",
+  DAMP_FAST_BUMP_LF: "2000",
+  DAMP_FAST_BUMP_LR: "2000",
+  DAMP_FAST_BUMP_RF: "2000",
+  DAMP_FAST_BUMP_RR: "2000",
+  DAMP_FAST_REBOUND_HF: "2500",
+  DAMP_FAST_REBOUND_HR: "2250",
+  DAMP_FAST_REBOUND_LF: "6000",
+  DAMP_FAST_REBOUND_LR: "6000",
+  DAMP_FAST_REBOUND_RF: "6000",
+  DAMP_FAST_REBOUND_RR: "6000",
+  DAMP_REBOUND_HF: "3250",
+  DAMP_REBOUND_HR: "3000",
+  DAMP_REBOUND_LF: "22000",
+  DAMP_REBOUND_LR: "20500",
+  DAMP_REBOUND_RF: "22000",
+  DAMP_REBOUND_RR: "20500",
+  DIFF_COAST: "50",
+  DIFF_POWER: "60",
+  DIFF_PRELOAD: "50",
+  ENGINE_LIMITER: "100",
+  FINAL_RATIO: "3",
+  FRONT_BIAS: "61",
+  FUEL: "50",
+  PACKER_RANGE_LF: "55",
+  PACKER_RANGE_LR: "60",
+  PACKER_RANGE_RF: "55",
+  PACKER_RANGE_RR: "60",
+  PRESSURE_LF: "22",
+  PRESSURE_LR: "22",
+  PRESSURE_RF: "22",
+  PRESSURE_RR: "22",
+  ROD_LENGTH_LF: "18",
+  ROD_LENGTH_LR: "18",
+  ROD_LENGTH_RF: "18",
+  ROD_LENGTH_RR: "18",
+  SPRING_RATE_HF: "70",
+  SPRING_RATE_HR: "60",
+  SPRING_RATE_LF: "115",
+  SPRING_RATE_LR: "105",
+  SPRING_RATE_RF: "115",
+  SPRING_RATE_RR: "105",
+  STEER_ASSIST: "70",
+  TOE_OUT_LF: "4",
+  TOE_OUT_LR: "5",
+  TOE_OUT_RF: "4",
+  TOE_OUT_RR: "5",
+  TRACTION_CONTROL: "8",
+  TYRES: "0",
+  WING_2: "1"
 };
 
 export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): string {
   const iniBlocks: string[] = [];
 
   const isLmp2 = template.id.includes("lmp2") || (setup.templateId && setup.templateId.includes("lmp2"));
-  const coreDict = isLmp2 ? CORE_LMP2_SECTIONS : CORE_AC_SECTIONS;
+  const isGt3 = template.id.includes("gt3") || (setup.templateId && setup.templateId.includes("gt3"));
+  const coreDict = isLmp2 ? CORE_LMP2_SECTIONS : (isGt3 ? CORE_GT3_SECTIONS : CORE_AC_SECTIONS);
 
   // Core sections: and insert metadata sections, then sort everything alphabetically.
   const allSections = [
@@ -464,13 +546,27 @@ export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): stri
         if (mapping.iniSection === section) {
           if (setup.values[fieldId] !== undefined && setup.values[fieldId] !== null && setup.values[fieldId] !== "") {
             let rawVal = setup.values[fieldId];
-            if (fieldId === "compound" || fieldId === "compound_lmp") {
-              if (rawVal === "Medium slick (m)" || rawVal === "LMP Medium (MED)") rawVal = "0";
-              else if (rawVal === "Rain (wet)") rawVal = "1";
+            if (fieldId === "compound") {
+              if (rawVal === "Michelin SBM (SBM)") rawVal = "0";
+              else if (rawVal === "Rain (WET)") rawVal = "1";
+            } else if (fieldId === "gears") {
+              if (rawVal === "Short") rawVal = "0";
+              else if (rawVal === "Standard") rawVal = "1";
+              else if (rawVal === "Long") rawVal = "2";
+            } else if (fieldId === "compound_lmp") {
+              if (rawVal === "Medium (M)") rawVal = "0";
+              else if (rawVal === "Rain (WET)") rawVal = "1";
             } else if (fieldId === "gears_lmp") {
-              if (rawVal === "10/32") rawVal = "0";
-              else if (rawVal === "10/30") rawVal = "1";
-              else if (rawVal === "10/28") rawVal = "2";
+              if (rawVal === "Short") rawVal = "0";
+              else if (rawVal === "Medium") rawVal = "1";
+              else if (rawVal === "Long") rawVal = "2";
+              else if (rawVal === "Le Mans") rawVal = "3";
+            } else if (fieldId === "bumpstop_rate_f_lmp" || fieldId === "bumpstop_rate_r_lmp") {
+              if (rawVal === "Soft") rawVal = "0";
+              else if (rawVal === "Stiff") rawVal = "1";
+            } else if (fieldId === "bumpstop_rate_f" || fieldId === "bumpstop_rate_r") {
+              if (rawVal === "Stiff") rawVal = "0";
+              else if (rawVal === "Soft") rawVal = "1";
             }
             val = rawVal;
             break;
@@ -483,7 +579,21 @@ export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): stri
       }
 
       if (val === null) {
-        val = coreDict[section] !== undefined ? coreDict[section] : "0";
+        if (section === "BUMPSTOP_RF") {
+          if (setup.values["bumpstop_rate_f_lmp"] !== undefined) {
+            val = setup.values["bumpstop_rate_f_lmp"] === "Soft" ? "0" : "1";
+          } else if (setup.values["bumpstop_rate_f"] !== undefined) {
+            val = setup.values["bumpstop_rate_f"] === "Stiff" ? "0" : "1";
+          }
+        } else if (section === "BUMPSTOP_RR") {
+          if (setup.values["bumpstop_rate_r_lmp"] !== undefined) {
+            val = setup.values["bumpstop_rate_r_lmp"] === "Soft" ? "0" : "1";
+          } else if (setup.values["bumpstop_rate_r"] !== undefined) {
+            val = setup.values["bumpstop_rate_r"] === "Stiff" ? "0" : "1";
+          }
+        } else {
+          val = coreDict[section] !== undefined ? coreDict[section] : "0";
+        }
       }
 
       if (section.startsWith("CAMBER_") && val) {
