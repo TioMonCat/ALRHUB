@@ -411,7 +411,77 @@ export default function App() {
         });
 
         if (snapshot.empty) {
-          setSetups([]);
+          const seedLexus: CarSetup = {
+            id: "lexus-gt3-default-seeded-moncat",
+            title: "Lexus RC F GT3 - MonCat - Setup Base",
+            game: "Assetto Corsa",
+            car: "ng_lexus_r_cf_gt3",
+            track: "Nürburgring Nordschleife",
+            templateId: "assetto-corsa-gt3",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            setupType: "LFM",
+            ownerId: "default_user",
+            creatorName: "MonCat",
+            values: {
+              "gears": "Standard",
+              "compound": "Michelin SBM (SBM)",
+              "press_lf": "20",
+              "press_rf": "20",
+              "press_lr": "18",
+              "press_rr": "18",
+              "liters": "100",
+              "tc": "6",
+              "abs": "8",
+              "rear_wing": "3",
+              "camber_lf": "-3.0",
+              "toe_lf": "11",
+              "camber_rf": "-3.0",
+              "toe_rf": "11",
+              "camber_lr": "-2.5",
+              "toe_lr": "14",
+              "camber_rr": "-2.5",
+              "toe_rr": "14",
+              "bumpstop_rate_f": "Soft",
+              "travel_range_lf": "71",
+              "travel_range_rf": "71",
+              "travel_range_lr": "75",
+              "travel_range_rr": "75",
+              "bumpstop_rate_r": "Soft",
+              "bump_lf": "13000",
+              "fst_bump_lf": "5000",
+              "rebound_lf": "17000",
+              "fst_rebound_lf": "5000",
+              "bump_rf": "13000",
+              "fst_bump_rf": "5000",
+              "rebound_rf": "17000",
+              "fst_rebound_rf": "5000",
+              "bump_lr": "13000",
+              "fst_bump_lr": "5000",
+              "rebound_lr": "17000",
+              "fst_rebound_lr": "5000",
+              "bump_rr": "13000",
+              "fst_bump_rr": "5000",
+              "rebound_rr": "17000",
+              "fst_rebound_rr": "5000",
+              "diff_power": "20",
+              "diff_preload": "90",
+              "diff_coast": "30",
+              "brake_bias": "66",
+              "arb_front": "50000",
+              "wheel_rate_lf": "130",
+              "height_lf": "21",
+              "wheel_rate_rf": "130",
+              "height_rf": "21",
+              "wheel_rate_lr": "130",
+              "height_lr": "21",
+              "wheel_rate_rr": "130",
+              "height_rr": "21",
+              "arb_rear": "30000"
+            }
+          };
+          setSetups([seedLexus]);
+          setDoc(doc(db, setupsPath, seedLexus.id), seedLexus).catch(console.error);
         } else {
           cloudSetups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setSetups(cloudSetups);
