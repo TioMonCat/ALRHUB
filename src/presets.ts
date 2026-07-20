@@ -190,7 +190,7 @@ export const ASSETTO_CORSA_LMP2_TEMPLATE: SetupTemplate = {
       id: "fuel",
       name: "Fuel",
       fields: [
-        { id: "liters_lmp", name: "Fuel", type: FieldType.NUMBER, min: 0, max: 75, step: 1, unit: "L", defaultValue: "35" }
+        { id: "liters_lmp", name: "Fuel", type: FieldType.NUMBER, min: 0, max: 35, step: 1, unit: "L", defaultValue: "35" }
       ]
     },
     {

@@ -477,7 +477,7 @@ export const CORE_LMP2_SECTIONS: Record<string, string> = {
   ENGINE_LIMITER: "100",
   FINAL_RATIO: "3",
   FRONT_BIAS: "61",
-  FUEL: "50",
+  FUEL: "35",
   PACKER_RANGE_LF: "55",
   PACKER_RANGE_LR: "60",
   PACKER_RANGE_RF: "55",
