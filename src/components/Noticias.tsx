@@ -493,7 +493,7 @@ export default function Noticias({
               </label>
               {pollOptions.map((opt, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-stone-500 font-mono w-4">{idx + 1}.</span>
+                  <span className="text-xs text-stone-500 font-mono w-6 text-right pr-1.5">{idx + 1}.</span>
                   <input
                     type="text"
                     required
@@ -521,7 +521,7 @@ export default function Noticias({
                 </div>
               ))}
 
-              {pollOptions.length < 8 && (
+              {pollOptions.length < 12 && (
                 <button
                   type="button"
                   onClick={() => setPollOptions([...pollOptions, ""])}
