@@ -459,7 +459,7 @@ export default function App() {
                 "rebound_rf": "17000",
                 "fst_rebound_rf": "5000",
                 "bump_lr": "13000",
-                "fst_bump_lr": "5000",
+                "fst_bump_lr": "13000",
                 "rebound_lr": "17000",
                 "fst_rebound_lr": "5000",
                 "bump_rr": "13000",

@@ -69,7 +69,7 @@ export const ASSETTO_CORSA_GT3_TEMPLATE: SetupTemplate = {
       id: "electronics",
       name: "Electronics",
       fields: [
-        { id: "tc", name: "Traction control", type: FieldType.NUMBER, min: 0, max: 11, step: 1, defaultValue: "6" },
+        { id: "tc", name: "Traction Control", type: FieldType.NUMBER, min: 0, max: 11, step: 1, defaultValue: "6" },
         { id: "abs", name: "ABS", type: FieldType.NUMBER, min: 0, max: 11, step: 1, defaultValue: "8" }
       ]
     },
@@ -119,7 +119,7 @@ export const ASSETTO_CORSA_GT3_TEMPLATE: SetupTemplate = {
         { id: "rebound_rf", name: "Rebound RF", type: FieldType.NUMBER, min: 11000, max: 25000, step: 1000, defaultValue: "17000" },
         { id: "fst_rebound_rf", name: "FST Rebound RF", type: FieldType.NUMBER, min: 3000, max: 10000, step: 500, defaultValue: "5000" },
         { id: "bump_lr", name: "Bump LR", type: FieldType.NUMBER, min: 11000, max: 20000, step: 1000, defaultValue: "13000" },
-        { id: "fst_bump_lr", name: "FST Bump LR", type: FieldType.NUMBER, min: 3000, max: 9000, step: 500, defaultValue: "5000" },
+        { id: "fst_bump_lr", name: "FST Bump LR", type: FieldType.NUMBER, min: 11000, max: 25000, step: 1000, defaultValue: "13000" },
         { id: "rebound_lr", name: "Rebound LR", type: FieldType.NUMBER, min: 10000, max: 25000, step: 500, defaultValue: "17000" },
         { id: "fst_rebound_lr", name: "FST Rebound LR", type: FieldType.NUMBER, min: 3000, max: 10000, step: 500, defaultValue: "5000" },
         { id: "bump_rr", name: "Bump RR", type: FieldType.NUMBER, min: 11000, max: 20000, step: 1000, defaultValue: "13000" },
