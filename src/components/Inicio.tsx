@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import ALRLogo from "./ALRLogo";
-import { UserProfile, NewsItem, TeamEvent, CarSetup } from "../types";
+import { UserProfile, NewsItem, TeamEvent, CarSetup, Poll } from "../types";
 import { 
   Users, 
   MapPin, 
@@ -13,7 +13,8 @@ import {
   FileText,
   Compass,
   ArrowRight,
-  Sliders
+  Sliders,
+  HelpCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
@@ -25,6 +26,7 @@ interface InicioProps {
   news: NewsItem[];
   events: TeamEvent[];
   setups: CarSetup[];
+  polls?: Poll[];
   onNavigate: (view: any) => void;
   pilotsCount: number;
   dbReadOnly?: boolean;
@@ -35,6 +37,7 @@ export default function Inicio({
   news,
   events,
   setups,
+  polls = [],
   onNavigate,
   pilotsCount,
   dbReadOnly = false,
@@ -92,6 +95,57 @@ export default function Inicio({
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const completedEvents = dbCompletedEvents.slice(0, 1);
+
+  // Poll eligibility functions matching Noticias.tsx
+  const getUserCategoryLocal = (profile: UserProfile | null): "GT3" | "LMP2" | "Postulante" | "Invitado" => {
+    if (!profile) return "Invitado";
+    if (profile.role === "postulante") return "Postulante";
+    
+    const carPref = profile.carPreference || "";
+    if (carPref.includes("LMP2")) {
+      return "LMP2";
+    }
+    return "GT3";
+  };
+
+  const isPollEligible = (poll: Poll, profile: UserProfile | null) => {
+    if (!profile) return false;
+    if (profile.role === "admin") return true;
+
+    // Check roles
+    if (poll.allowedRoles && poll.allowedRoles.length > 0) {
+      if (!poll.allowedRoles.includes(profile.role)) {
+        return false;
+      }
+    }
+
+    // Check simulators
+    if (poll.allowedSimulators && poll.allowedSimulators.length > 0) {
+      const userGame = profile.preferredGame || "";
+      if (userGame !== "Ambos") {
+        const hasSim = poll.allowedSimulators.some(sim => sim === userGame || sim === "Ambos");
+        if (!hasSim && poll.allowedSimulators.length > 0) {
+          return false;
+        }
+      }
+    }
+
+    // Check driver class
+    if (poll.allowedClasses && poll.allowedClasses.length > 0) {
+      const userClass = getUserCategoryLocal(profile);
+      if (!poll.allowedClasses.includes(userClass)) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const eligibleActivePolls = (polls || []).filter(poll => !poll.isClosed && isPollEligible(poll, currentUserProfile));
+  const pendingActivePolls = eligibleActivePolls.filter(poll => {
+    if (!currentUserProfile) return false;
+    return !poll.votes || poll.votes[currentUserProfile.uid] === undefined;
+  });
 
   const handleUpdateApplication = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -580,6 +634,55 @@ export default function Inicio({
             </h2>
 
             <div className="space-y-4">
+              {/* Active Polls Notification */}
+              {eligibleActivePolls.length > 0 && (
+                <div className="bg-gradient-to-r from-[#1b1424] to-[#0D0D0F] border-l-4 border-l-purple-500 border-y border-r border-[#1F1F23]/80 rounded-r-xl p-5 relative overflow-hidden group">
+                  {/* Subtle pulsing background glow */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10 transition-all pointer-events-none" />
+                  
+                  <div className="flex justify-between items-start mb-2 relative z-10">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                      Encuesta Activa
+                    </span>
+                    <span className="text-[10px] text-stone-500 font-mono">
+                      {pendingActivePolls.length > 0 
+                        ? "⚠️ Pendiente de Voto" 
+                        : "✓ Completado"}
+                    </span>
+                  </div>
+                  
+                  <h3 className="text-base font-bold text-white relative z-10 flex items-start gap-2">
+                    <HelpCircle className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+                    <span>
+                      {pendingActivePolls.length > 0 
+                        ? pendingActivePolls[0].question 
+                        : eligibleActivePolls[0].question}
+                    </span>
+                  </h3>
+                  
+                  <p className="text-xs text-stone-400 mt-2 leading-relaxed relative z-10">
+                    {pendingActivePolls.length > 0 
+                      ? (pendingActivePolls[0].description || "Tu opinión es muy valiosa para el futuro de la escudería. ¡No olvides dejar tu voto!") 
+                      : "¡Gracias por participar! Has votado en todas las encuestas activas de tu categoría."}
+                  </p>
+                  
+                  <div className="mt-4 flex items-center gap-3 relative z-10">
+                    <button
+                      onClick={() => onNavigate("noticias")}
+                      className="flex items-center gap-1.5 text-[10px] font-mono font-bold bg-purple-600/20 hover:bg-purple-600 text-purple-400 hover:text-white border border-purple-500/30 px-3.5 py-1.5 rounded-lg uppercase tracking-widest transition-all cursor-pointer"
+                    >
+                      {pendingActivePolls.length > 0 ? "Votar Ahora" : "Ver Resultados"} <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    {pendingActivePolls.length > 1 && (
+                      <span className="text-[10px] text-stone-500 font-mono">
+                        + {pendingActivePolls.length - 1} más pendiente{pendingActivePolls.length - 1 > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {pinnedNewsList.length > 0 || pinnedEventsList.length > 0 ? (
                 <>
                   {pinnedNewsList.map(newsItem => (

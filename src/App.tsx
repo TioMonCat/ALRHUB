@@ -1695,6 +1695,7 @@ export default function App() {
                   news={news}
                   events={events}
                   setups={setups}
+                  polls={polls}
                   onNavigate={(view) => setActiveTab(view as TabType)}
                   pilotsCount={officialPilotsCount}
                   dbReadOnly={!!dbError?.hasError}
