@@ -29,6 +29,14 @@ service cloud.firestore {
       );
     }
 
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
     match /users/{userId} {
       allow read: if isAuth() || userId == "default_user";
       allow create, update: if isOwner(userId) || isAppAdmin();
