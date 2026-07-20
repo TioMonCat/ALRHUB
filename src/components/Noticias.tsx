@@ -31,6 +31,7 @@ interface NoticiasProps {
   currentUserProfile: UserProfile | null;
   isLoading: boolean;
   dbReadOnly?: boolean;
+  users?: UserProfile[];
 }
 
 // Helper to determine pilot category
@@ -111,6 +112,7 @@ export default function Noticias({
   currentUserProfile,
   isLoading,
   dbReadOnly = false,
+  users = [],
 }: NoticiasProps) {
   // Announcements form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -744,6 +746,7 @@ export default function Noticias({
                   onDeleteVote={handleDeleteVote}
                   onToggleClosed={handleTogglePollClosed}
                   onDelete={handleDeletePoll}
+                  users={users}
                 />
               ))}
             </div>
@@ -764,6 +767,7 @@ interface PollCardProps {
   onDeleteVote: (pollId: string) => Promise<void> | void;
   onToggleClosed: (pollId: string, isClosed: boolean) => Promise<void> | void;
   onDelete: (pollId: string) => Promise<void> | void;
+  users?: UserProfile[];
 }
 
 function PollCard({
@@ -775,6 +779,7 @@ function PollCard({
   onDeleteVote,
   onToggleClosed,
   onDelete,
+  users = [],
 }: PollCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditingVote, setIsEditingVote] = useState(false);
@@ -1017,14 +1022,23 @@ function PollCard({
               <div className="pt-2 text-left">
                 <span className="text-[9px] font-mono text-stone-500 block mb-2 uppercase">Respuestas registradas ({totalVotes}):</span>
                 <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {Object.values(poll.votes || {}).map((voteObj: any, idx) => (
-                    <div key={idx} className="bg-stone-900/40 p-2 rounded border border-stone-800 text-[11px] space-y-1">
-                      <div className="flex items-center gap-1.5 text-[9px] text-stone-500 font-mono">
-                        <span className="text-stone-300 font-bold">{voteObj.userName}</span>
+                  {Object.entries(poll.votes || {}).map(([voterUid, voteObj]: [string, any], idx) => {
+                    const isOwnText = currentUserProfile?.uid === voterUid;
+                    const canSeeIdentity = isAdmin || isOwnText;
+                    return (
+                      <div key={idx} className="bg-stone-900/40 p-2 rounded border border-stone-800 text-[11px] space-y-1">
+                        <div className="flex items-center gap-1.5 text-[9px] text-stone-500 font-mono">
+                          <span className="text-stone-300 font-bold">
+                            {canSeeIdentity ? voteObj.userName : "Piloto de la Escudería"}
+                          </span>
+                          {isOwnText && (
+                            <span className="text-[7px] text-purple-400 uppercase font-bold ml-1">Tú</span>
+                          )}
+                        </div>
+                        <p className="text-stone-400 leading-normal italic font-sans">"{voteObj.text}"</p>
                       </div>
-                      <p className="text-stone-400 leading-normal italic font-sans">"{voteObj.text}"</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1155,8 +1169,20 @@ function PollCard({
                     ? userVoteValue === idx 
                     : Array.isArray(userVoteValue) && userVoteValue.includes(idx);
 
+                  // Admins see who voted what
+                  const votersForThisOption = Object.entries(poll.votes || {})
+                    .filter(([_, val]) => {
+                      if (poll.type === "single" && val === idx) return true;
+                      if (poll.type === "multiple" && Array.isArray(val) && val.includes(idx)) return true;
+                      return false;
+                    })
+                    .map(([voterUid]) => {
+                      const pilotProfile = (users || []).find(u => u.uid === voterUid);
+                      return pilotProfile ? pilotProfile.displayName : `Piloto (ID: ${voterUid.substring(0, 5)})`;
+                    });
+
                   return (
-                    <div key={idx} className="space-y-1 relative">
+                    <div key={idx} className="space-y-1.5 relative">
                       {/* Option Label and Percentage Bar Row */}
                       <div className="flex items-center justify-between text-[11px] font-medium z-10 relative px-0.5">
                         <span className="text-stone-200 flex items-center gap-1.5 truncate pr-2">
@@ -1188,6 +1214,18 @@ function PollCard({
                           style={{ width: `${pct}%` }}
                         />
                       </div>
+
+                      {/* Admins can see exactly who voted this option */}
+                      {isAdmin && votersForThisOption.length > 0 && (
+                        <div className="text-[9px] text-purple-400/90 font-mono pl-1.5 pt-0.5 flex flex-wrap gap-1 items-center">
+                          <span className="text-stone-500">Votado por:</span>
+                          {votersForThisOption.map((name, pIdx) => (
+                            <span key={pIdx} className="bg-purple-950/30 text-purple-300 border border-purple-900/20 px-1.5 py-0.5 rounded font-bold">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1201,6 +1239,7 @@ function PollCard({
                 <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
                   {Object.entries(poll.votes || {}).map(([voterUid, voteObj]: [string, any]) => {
                     const isOwnText = currentUserProfile?.uid === voterUid;
+                    const canSeeIdentity = isAdmin || isOwnText;
                     return (
                       <div 
                         key={voterUid} 
@@ -1212,14 +1251,25 @@ function PollCard({
                       >
                         <div className="flex items-center justify-between gap-1.5">
                           <div className="flex items-center gap-1.5">
-                            {voteObj.userPhoto ? (
-                              <img src={voteObj.userPhoto} alt="" className="w-4.5 h-4.5 rounded-full shrink-0 border border-stone-800" referrerPolicy="no-referrer" />
+                            {canSeeIdentity ? (
+                              <>
+                                {voteObj.userPhoto ? (
+                                  <img src={voteObj.userPhoto} alt="" className="w-4.5 h-4.5 rounded-full shrink-0 border border-stone-800" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-4.5 h-4.5 bg-purple-950/60 text-purple-400 border border-purple-900/40 rounded-full text-[8px] font-bold flex items-center justify-center font-mono">
+                                    {voteObj.userName ? voteObj.userName.charAt(0).toUpperCase() : "?"}
+                                  </div>
+                                )}
+                                <span className="text-stone-300 font-bold font-mono">{voteObj.userName}</span>
+                              </>
                             ) : (
-                              <div className="w-4.5 h-4.5 bg-purple-950/60 text-purple-400 border border-purple-900/40 rounded-full text-[8px] font-bold flex items-center justify-center font-mono">
-                                {voteObj.userName ? voteObj.userName.charAt(0).toUpperCase() : "?"}
-                              </div>
+                              <>
+                                <div className="w-4.5 h-4.5 bg-stone-800/80 text-stone-400 border border-stone-700 rounded-full text-[8px] font-bold flex items-center justify-center font-mono">
+                                  P
+                                </div>
+                                <span className="text-stone-400 font-bold font-mono">Piloto de la Escudería</span>
+                              </>
                             )}
-                            <span className="text-stone-300 font-bold font-mono">{voteObj.userName}</span>
                           </div>
                           {isOwnText && (
                             <span className="bg-purple-950/60 text-purple-400 border border-purple-900/30 text-[7px] font-bold px-1.5 py-0.5 rounded-full font-mono uppercase">

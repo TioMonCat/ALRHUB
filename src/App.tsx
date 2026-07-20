@@ -1710,6 +1710,7 @@ export default function App() {
                   currentUserProfile={resolvedProfile}
                   isLoading={false}
                   dbReadOnly={!!dbError?.hasError}
+                  users={allUsers}
                 />
               )}
 
