@@ -34,19 +34,15 @@ interface NoticiasProps {
 }
 
 // Helper to determine pilot category
-function getUserCategory(profile: UserProfile | null): "GT3" | "LMP2" | "Reserva" | "Postulante" | "Invitado" {
+function getUserCategory(profile: UserProfile | null): "GT3" | "LMP2" | "Postulante" | "Invitado" {
   if (!profile) return "Invitado";
   if (profile.role === "postulante") return "Postulante";
-  if (profile.role === "admin") return "GT3"; // Admin defaults to allow class representation, or handles override
   
-  const raceNumber = profile.raceNumber;
-  if (raceNumber === "05" || raceNumber === "08") {
-    return "GT3";
-  } else if (raceNumber === "32" || raceNumber === "43") {
+  const carPref = profile.carPreference || "";
+  if (carPref.includes("LMP2")) {
     return "LMP2";
-  } else {
-    return "Reserva";
   }
+  return "GT3";
 }
 
 // Helper to validate eligibility
@@ -599,8 +595,7 @@ export default function Noticias({
                 <div className="space-y-1.5">
                   {[
                     { id: "GT3", label: "GT3 (Ferrari)" },
-                    { id: "LMP2", label: "LMP2 (Oreca)" },
-                    { id: "Reserva", label: "Reserva / Banca" }
+                    { id: "LMP2", label: "LMP2 (Oreca)" }
                   ].map((cls) => (
                     <label key={cls.id} className="flex items-center gap-2 cursor-pointer text-xs text-stone-300 hover:text-white select-none">
                       <input
