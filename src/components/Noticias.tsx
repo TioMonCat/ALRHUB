@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Shield,
   HelpCircle,
-  Eye
+  Eye,
+  X
 } from "lucide-react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { collection, addDoc, deleteDoc, doc, updateDoc, deleteField } from "firebase/firestore";
@@ -238,12 +239,13 @@ export default function Noticias({
     }
   };
 
-  const handleDeleteVote = async (pollId: string) => {
-    if (!currentUserProfile || dbReadOnly) return;
+  const handleDeleteVote = async (pollId: string, targetUid?: string) => {
+    const uidToDelete = targetUid || currentUserProfile?.uid;
+    if (!uidToDelete || dbReadOnly) return;
     const path = `polls/${pollId}`;
     try {
       await updateDoc(doc(db, "polls", pollId), {
-        [`votes.${currentUserProfile.uid}`]: deleteField(),
+        [`votes.${uidToDelete}`]: deleteField(),
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
@@ -764,7 +766,7 @@ interface PollCardProps {
   isAdmin: boolean;
   dbReadOnly: boolean;
   onVote: (pollId: string, voteValue: any) => Promise<void> | void;
-  onDeleteVote: (pollId: string) => Promise<void> | void;
+  onDeleteVote: (pollId: string, targetUid?: string) => Promise<void> | void;
   onToggleClosed: (pollId: string, isClosed: boolean) => Promise<void> | void;
   onDelete: (pollId: string) => Promise<void> | void;
   users?: UserProfile[];
@@ -1178,7 +1180,10 @@ function PollCard({
                     })
                     .map(([voterUid]) => {
                       const pilotProfile = (users || []).find(u => u.uid === voterUid);
-                      return pilotProfile ? pilotProfile.displayName : `Piloto (ID: ${voterUid.substring(0, 5)})`;
+                      return {
+                        uid: voterUid,
+                        name: pilotProfile ? pilotProfile.displayName : `Piloto (ID: ${voterUid.substring(0, 5)})`
+                      };
                     });
 
                   return (
@@ -1219,9 +1224,22 @@ function PollCard({
                       {isAdmin && votersForThisOption.length > 0 && (
                         <div className="text-[9px] text-purple-400/90 font-mono pl-1.5 pt-0.5 flex flex-wrap gap-1 items-center">
                           <span className="text-stone-500">Votado por:</span>
-                          {votersForThisOption.map((name, pIdx) => (
-                            <span key={pIdx} className="bg-purple-950/30 text-purple-300 border border-purple-900/20 px-1.5 py-0.5 rounded font-bold">
-                              {name}
+                          {votersForThisOption.map((voter) => (
+                            <span key={voter.uid} className="bg-purple-950/30 text-purple-300 border border-purple-900/20 px-1.5 py-0.5 rounded font-bold flex items-center gap-1 group">
+                              <span>{voter.name}</span>
+                              <button
+                                type="button"
+                                disabled={dbReadOnly}
+                                onClick={() => {
+                                  if (window.confirm(`¿Deseas eliminar el voto de "${voter.name}"? Podrá volver a votar.`)) {
+                                    onDeleteVote(poll.id, voter.uid);
+                                  }
+                                }}
+                                className="text-purple-400 hover:text-red-400 transition-colors cursor-pointer p-0.5"
+                                title={`Eliminar voto de ${voter.name}`}
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
                             </span>
                           ))}
                         </div>
@@ -1271,11 +1289,29 @@ function PollCard({
                               </>
                             )}
                           </div>
-                          {isOwnText && (
-                            <span className="bg-purple-950/60 text-purple-400 border border-purple-900/30 text-[7px] font-bold px-1.5 py-0.5 rounded-full font-mono uppercase">
-                              Tú
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {isOwnText && (
+                              <span className="bg-purple-950/60 text-purple-400 border border-purple-900/30 text-[7px] font-bold px-1.5 py-0.5 rounded-full font-mono uppercase">
+                                Tú
+                              </span>
+                            )}
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                disabled={dbReadOnly}
+                                onClick={() => {
+                                  const voterName = voteObj.userName || "este piloto";
+                                  if (window.confirm(`¿Deseas eliminar la respuesta de "${voterName}"? Podrá volver a votar.`)) {
+                                    onDeleteVote(poll.id, voterUid);
+                                  }
+                                }}
+                                className="text-stone-500 hover:text-red-400 p-0.5 transition-colors cursor-pointer"
+                                title={`Eliminar respuesta de ${voteObj.userName || "este piloto"}`}
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-stone-300 font-sans pl-0.5 whitespace-pre-wrap">
                           {voteObj.text}
