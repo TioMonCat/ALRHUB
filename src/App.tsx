@@ -46,7 +46,7 @@ import { motion, AnimatePresence } from "motion/react";
 // Firebase
 import { auth, db, googleProvider, OperationType, handleFirestoreError, recalculateAndUpdatePilotStats } from "./firebase";
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendEmailVerification, sendPasswordResetEmail } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, getDoc, addDoc } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, getDoc, addDoc, getDocs } from "firebase/firestore";
 
 const sanitizeForFirestore = <T,>(data: T): T => {
   if (data === undefined) return null as any;
@@ -204,7 +204,7 @@ export default function App() {
           const userDoc = await getDoc(userRef);
 
           const email = user.email || "";
-          const isOwnerAdmin = email.toLowerCase() === "jaminecraft844@gmail.com";
+          const isOwnerAdmin = email.toLowerCase() === "jaminecraft844@gmail.com" || email.toLowerCase() === "bverdugo844@gmail.com";
 
           if (!userDoc.exists()) {
             // New registration default: Postulante - Completed details pending (unless they are the owner)
@@ -249,6 +249,46 @@ export default function App() {
   }, []);
 
   // 1.1 RECALCULATE STATS AUTOMATICALLY FOR CURRENT USER & SELECTED PILOT PROFILE
+  useEffect(() => {
+    const runAutoCleanup = async () => {
+      if (!firebaseUser) return;
+      const email = firebaseUser.email?.toLowerCase();
+      if (email !== "jaminecraft844@gmail.com" && email !== "bverdugo844@gmail.com") return;
+      
+      const isCleaned = localStorage.getItem("alr_test_telemetry_cleaned_v2");
+      if (isCleaned === "true") return;
+
+      try {
+        const sessionsSnap = await getDocs(collection(db, "telemetry_sessions"));
+        let countDeleted = 0;
+        for (const d of sessionsSnap.docs) {
+          const s = d.data();
+          if (s.pilotUid === firebaseUser.uid) {
+            await deleteDoc(doc(db, "telemetry_sessions", d.id));
+            countDeleted++;
+          }
+        }
+        localStorage.setItem("alr_test_telemetry_cleaned_v2", "true");
+        await updateDoc(doc(db, "users", firebaseUser.uid), {
+          stats: {
+            races: 0,
+            wins: 0,
+            podiums: 0,
+            poles: 0,
+            fastestLaps: 0,
+            bestLap: "—:——.———",
+            avgPosition: 0,
+            consistency: 0
+          }
+        });
+        console.log(`Auto-cleanup complete! Deleted ${countDeleted} sessions for ${email}.`);
+      } catch (e) {
+        console.warn("Could not auto-cleanup test sessions:", e);
+      }
+    };
+    runAutoCleanup();
+  }, [firebaseUser]);
+
   useEffect(() => {
     if (!firebaseUser) return;
     recalculateAndUpdatePilotStats(firebaseUser.uid).catch((err) => {

@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { UserProfile } from "../types";
-import { Settings, Shield, User, Hash, Save, ShieldCheck, UserX, ToggleLeft } from "lucide-react";
+import { Settings, Shield, User, Hash, Save, ShieldCheck, UserX, ToggleLeft, RefreshCw, AlertTriangle } from "lucide-react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { COUNTRIES } from "../presets";
 
 interface GestionAdminProps {
@@ -25,6 +25,54 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
   const [isSaving, setIsSaving] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [isResettingStats, setIsResettingStats] = useState(false);
+
+  const handleResetAllStats = async () => {
+    if (dbReadOnly) {
+      setErrorMsg("La base de datos está en modo de solo lectura.");
+      return;
+    }
+    if (!window.confirm("¿Estás seguro de que deseas resetear todas las estadísticas a 0 para TODOS los pilotos de la escudería? Esto eliminará de forma permanente todas las sesiones de telemetría registradas.")) {
+      return;
+    }
+    setIsResettingStats(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      // 1. Delete all documents inside telemetry_sessions
+      const sessionsSnap = await getDocs(collection(db, "telemetry_sessions"));
+      let deletedSessionsCount = 0;
+      for (const d of sessionsSnap.docs) {
+        await deleteDoc(doc(db, "telemetry_sessions", d.id));
+        deletedSessionsCount++;
+      }
+
+      // 2. Reset the profile-cached stats of all users
+      let count = 0;
+      for (const u of users) {
+        await updateDoc(doc(db, "users", u.uid), {
+          stats: {
+            races: 0,
+            wins: 0,
+            podiums: 0,
+            poles: 0,
+            fastestLaps: 0,
+            bestLap: "—:——.———",
+            avgPosition: 0,
+            consistency: 0
+          }
+        });
+        count++;
+      }
+      setSuccessMsg(`¡Éxito! Se han eliminado ${deletedSessionsCount} sesiones de telemetría y reseteado las estadísticas de ${count} pilotos a 0.`);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg("Error al resetear las estadísticas. Asegúrate de tener permisos reales de administrador.");
+    } finally {
+      setIsResettingStats(false);
+    }
+  };
 
   const handleEditUser = (u: UserProfile) => {
     setEditingUserId(u.uid);
@@ -471,6 +519,44 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
           Consola maestra • Auditoría de licencias, roles y dorsales de la delegación
         </p>
       </div>
+
+      {/* Mantenimiento de Estadísticas */}
+      <div className="p-4 bg-red-950/10 border border-red-900/30 rounded-xl space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h4 className="text-xs font-mono font-black uppercase tracking-widest text-white flex items-center gap-2">
+              <RefreshCw className={`w-4 h-4 text-red-500 ${isResettingStats ? 'animate-spin' : ''}`} />
+              Mantenimiento de Estadísticas (ALR Paddock)
+            </h4>
+            <p className="text-stone-400 text-[11px] font-mono leading-relaxed max-w-2xl">
+              Acción crítica recomendada por la administración. Permite dejar a todos los pilotos oficiales en valor de 0 para iniciar de forma limpia la recogida de telemetría post-sesión.
+            </p>
+          </div>
+          <button
+            onClick={handleResetAllStats}
+            disabled={isResettingStats || dbReadOnly}
+            className={`px-4 py-2 rounded-lg font-mono text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer text-center whitespace-nowrap shrink-0 ${
+              isResettingStats || dbReadOnly
+                ? "bg-stone-800 text-stone-500 border border-stone-700 cursor-not-allowed"
+                : "bg-red-950/60 hover:bg-red-600/20 text-red-400 hover:text-white border border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.05)] hover:shadow-[0_0_25px_rgba(239,68,68,0.15)]"
+            }`}
+          >
+            {isResettingStats ? "Reseteando..." : "Resetear todas las Stats a 0"}
+          </button>
+        </div>
+      </div>
+
+      {successMsg && (
+        <div className="p-3 bg-emerald-950/40 border border-emerald-900/50 rounded-lg text-emerald-200 text-xs font-mono flex items-center justify-between gap-3 animate-fade-in">
+          <span>{successMsg}</span>
+          <button
+            onClick={() => setSuccessMsg(null)}
+            className="text-emerald-400 hover:text-white px-2 py-0.5 rounded bg-emerald-900/20 hover:bg-emerald-900/40 transition-colors font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {dbReadOnly && (
         <div className="p-3.5 bg-red-950/25 border border-red-500/25 rounded-xl text-red-400 text-xs font-mono flex flex-col md:flex-row items-baseline md:items-center justify-between gap-3 shadow-md relative overflow-hidden">
