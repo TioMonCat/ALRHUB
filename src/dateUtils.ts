@@ -7,11 +7,9 @@ export const parseEventDate = (isoString?: string | null): Date | null => {
   if (!isoString) return null;
   try {
     let str = isoString.trim();
-    // Check if string lacks a timezone offset (Z or +HH:MM or -HH:MM)
-    const hasTimezone = /Z|[+-]\d{2}:?\d{2}$/i.test(str);
-    if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/i.test(str)) {
-      // Append 'Z' so it's correctly interpreted as UTC ISO string
-      str = str + "Z";
+    // If date-only string "YYYY-MM-DD", append T00:00:00 so it parses as local start of day
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      str = str + "T00:00:00";
     }
     const d = new Date(str);
     return isNaN(d.getTime()) ? null : d;
@@ -37,7 +35,9 @@ export const formatForDateTimeInput = (dateInput?: string | Date | null): string
 export const formatLocalTime = (isoString?: string | null): string => {
   const d = parseEventDate(isoString);
   if (!d) return "Hora no disp.";
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) + " hrs";
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes} hrs`;
 };
 
 export const formatFullDate = (isoString?: string | null): string => {

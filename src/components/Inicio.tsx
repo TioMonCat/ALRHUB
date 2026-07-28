@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { COUNTRIES } from "../presets";
+import { formatShortDate, formatFullDate, formatLocalTime } from "../dateUtils";
 
 interface InicioProps {
   currentUserProfile: UserProfile | null;
@@ -692,7 +693,7 @@ export default function Inicio({
                           AVISO OFICIAL
                         </span>
                         <span className="text-[10px] text-stone-500 font-mono">
-                          {new Date(newsItem.date).toLocaleDateString()}
+                          {formatShortDate(newsItem.date)}
                         </span>
                       </div>
                       <h3 className="text-base font-bold text-white relative z-10">{newsItem.title}</h3>
@@ -715,7 +716,7 @@ export default function Inicio({
                           EVENTO DESTACADO
                         </span>
                         <span className="text-[10px] text-stone-500 font-mono">
-                          {new Date(event.date).toLocaleDateString()}
+                          {formatShortDate(event.date)}
                         </span>
                       </div>
                       <h3 className="text-base font-bold text-white relative z-10">{event.title}</h3>

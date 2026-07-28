@@ -280,33 +280,6 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
     return days;
   }, [year, month, filteredEvents]);
 
-  // Format local time from ISO string
-  const formatLocalTime = (isoString?: string) => {
-    if (!isoString) return "Hora no disp.";
-    try {
-      const d = new Date(isoString);
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) + " hrs";
-    } catch {
-      return "Hora no disp.";
-    }
-  };
-
-  // Format full date display
-  const formatFullDate = (isoString?: string) => {
-    if (!isoString) return "";
-    try {
-      const d = new Date(isoString);
-      return d.toLocaleDateString("es-ES", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric"
-      });
-    } catch {
-      return isoString;
-    }
-  };
-
   // Helper for type badges
   const getTypeBadge = (type?: string) => {
     const t = (type || "").toLowerCase();
