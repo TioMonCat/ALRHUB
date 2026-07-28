@@ -3,6 +3,7 @@ import { TeamEvent, UserProfile } from "../types";
 import { Plus, Trash, Award, Calendar, CheckSquare, Clock, MapPin, Trophy, Star, Edit3 } from "lucide-react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { collection, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { parseEventDate, formatForDateTimeInput, formatLocalTime, formatFullDate, toISOStringFromInput, isRaceEvent } from "../dateUtils";
 
 interface TemporadaProps {
   events: TeamEvent[];
@@ -75,7 +76,7 @@ export default function Temporada({
       title,
       track,
       car,
-      date: date ? new Date(date).toISOString() : new Date().toISOString(),
+      date: date ? toISOStringFromInput(date) : new Date().toISOString(),
       type,
       description,
       status: "scheduled",
@@ -185,17 +186,7 @@ export default function Temporada({
     setTrack(ev.track);
     setCar(ev.car);
     if (ev.date) {
-      try {
-        const d = new Date(ev.date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        const hours = String(d.getHours()).padStart(2, "0");
-        const minutes = String(d.getMinutes()).padStart(2, "0");
-        setDate(`${year}-${month}-${day}T${hours}:${minutes}`);
-      } catch (e) {
-        setDate("");
-      }
+      setDate(formatForDateTimeInput(ev.date));
     } else {
       setDate("");
     }
@@ -247,7 +238,7 @@ export default function Temporada({
         title,
         track,
         car,
-        date: date ? new Date(date).toISOString() : new Date().toISOString(),
+        date: date ? toISOStringFromInput(date) : new Date().toISOString(),
         type,
         description,
         pinnable,
@@ -290,14 +281,16 @@ export default function Temporada({
     }
   };
 
-  // Sort events: Scheduled events first (ordered by nearest date), then Completed events (ordered by latest completed)
-  const scheduledEvents = events
-    .filter((e) => e.status === "scheduled")
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Sort events: Only competitive race events in Temporada
+  const raceEvents = events.filter(isRaceEvent);
 
-  const dbCompletedEvents = events
+  const scheduledEvents = raceEvents
+    .filter((e) => e.status === "scheduled")
+    .sort((a, b) => (parseEventDate(a.date)?.getTime() || 0) - (parseEventDate(b.date)?.getTime() || 0));
+
+  const dbCompletedEvents = raceEvents
     .filter((e) => e.status === "completed")
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => (parseEventDate(b.date)?.getTime() || 0) - (parseEventDate(a.date)?.getTime() || 0));
 
   const completedEvents = dbCompletedEvents;
   const visibleCompletedEvents = showAllCompleted ? completedEvents : completedEvents.slice(0, 1);

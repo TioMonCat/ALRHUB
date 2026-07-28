@@ -400,7 +400,7 @@ export default function App() {
             track: "Circuito de Prueba",
             car: "Coche Test",
             type: "Test",
-            date: new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString().replace(/\.\d+Z$/, ""),
+            date: new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString(),
             status: "scheduled",
             description: "Evento autogenerado de prueba."
           }).catch(console.error);

@@ -3,6 +3,7 @@ import { TeamEvent, UserProfile, AttendanceRecord } from "../types";
 import { Check, X, HelpCircle, Save, Clock, Users, Calendar, Sparkles, ClipboardList, Edit3 } from "lucide-react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { formatLocalTime, formatFullDate, isRaceEvent } from "../dateUtils";
 
 interface AsistenciaProps {
   events: TeamEvent[];
@@ -31,7 +32,7 @@ export default function Asistencia({
   const [strategyText, setStrategyText] = useState("");
   const [isSavingStrategy, setIsSavingStrategy] = useState(false);
 
-  const activeEvents = events.filter((e) => e.status === "scheduled");
+  const activeEvents = events.filter((e) => e.status === "scheduled" && isRaceEvent(e));
 
   // Automatically select the first event if none is selected
   const activeEventId = selectedEventId || (activeEvents.length > 0 ? activeEvents[0].id : null);
@@ -207,7 +208,7 @@ export default function Asistencia({
                   <div className="text-xs bg-stone-900 border border-stone-800 p-2 rounded-lg text-right font-mono">
                     <p className="text-[9px] text-stone-500 uppercase">Largada</p>
                     <p className="text-cyan-400 font-bold mt-0.5">
-                      {new Date(currentEvent.date).toLocaleDateString()} {new Date(currentEvent.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatFullDate(currentEvent.date)} • {formatLocalTime(currentEvent.date)}
                     </p>
                   </div>
                 </div>

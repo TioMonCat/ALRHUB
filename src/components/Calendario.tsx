@@ -3,6 +3,13 @@ import { TeamEvent, UserProfile } from "../types";
 import { db, handleFirestoreError, OperationType } from "../firebase";
 import { collection, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { 
+  parseEventDate, 
+  formatForDateTimeInput, 
+  formatLocalTime, 
+  formatFullDate, 
+  toISOStringFromInput 
+} from "../dateUtils";
+import { 
   Calendar as CalendarIcon, 
   ChevronLeft, 
   ChevronRight, 
@@ -93,15 +100,7 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
     setCreateDescription(event.description || "");
 
     if (event.date) {
-      try {
-        const d = new Date(event.date);
-        const isoLocal = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-          .toISOString()
-          .slice(0, 16);
-        setCreateDate(isoLocal);
-      } catch {
-        setCreateDate("");
-      }
+      setCreateDate(formatForDateTimeInput(event.date));
     } else {
       setCreateDate("");
     }
@@ -115,7 +114,7 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
 
     try {
       const formattedDate = createDate 
-        ? new Date(createDate).toISOString().replace(/\.\d+Z$/, "") 
+        ? toISOStringFromInput(createDate)
         : new Date().toISOString();
 
       if (editingEvent) {
@@ -184,8 +183,8 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
         if (!cat.includes(selectedCategory.toLowerCase())) return false;
       }
       // Status filter
-      const eDate = e.date ? new Date(e.date) : null;
-      const isPast = e.status === "completed" || (eDate && eDate < new Date());
+      const eDate = parseEventDate(e.date);
+      const isPast = e.status === "completed" || (eDate ? eDate < new Date() : false);
       if (selectedStatus === "upcoming" && isPast) return false;
       if (selectedStatus === "completed" && !isPast) return false;
 
@@ -246,7 +245,8 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
       // Find events matching this specific date
       const dayEvents = filteredEvents.filter(e => {
         if (!e.date) return false;
-        const eDate = new Date(e.date);
+        const eDate = parseEventDate(e.date);
+        if (!eDate) return false;
         return (
           eDate.getFullYear() === year &&
           eDate.getMonth() === month &&
@@ -575,8 +575,7 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
                             setEditingEvent(null);
                             const d = new Date(cell.date);
                             d.setHours(20, 0, 0, 0);
-                            const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                            setCreateDate(iso);
+                            setCreateDate(formatForDateTimeInput(d));
                             setShowCreateModal(true);
                           }}
                           className="opacity-0 group-hover/cell:opacity-100 p-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 hover:text-white rounded text-[10px] transition-all cursor-pointer"
@@ -595,7 +594,8 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
                   {/* Events Container Inside Day Cell */}
                   <div className="flex-1 space-y-1.5 overflow-y-auto hide-scrollbar max-h-[120px]">
                     {cell.events.map((event) => {
-                      const isPast = event.status === "completed" || (event.date && new Date(event.date) < new Date());
+                      const eDate = parseEventDate(event.date);
+                      const isPast = event.status === "completed" || (eDate ? eDate < new Date() : false);
                       const badge = getTypeBadge(event.type);
 
                       return (
@@ -678,9 +678,10 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredEvents
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                .sort((a, b) => (parseEventDate(a.date)?.getTime() || 0) - (parseEventDate(b.date)?.getTime() || 0))
                 .map((event) => {
-                  const isPast = event.status === "completed" || (event.date && new Date(event.date) < new Date());
+                  const eDate = parseEventDate(event.date);
+                  const isPast = event.status === "completed" || (eDate ? eDate < new Date() : false);
                   const badge = getTypeBadge(event.type);
 
                   return (
@@ -770,7 +771,8 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
               <div className="flex items-start justify-between border-b border-stone-850 pb-4">
                 <div className="space-y-1.5 pr-4">
                   {(() => {
-                    const isPast = selectedEvent.status === "completed" || (selectedEvent.date && new Date(selectedEvent.date) < new Date());
+                    const eDate = parseEventDate(selectedEvent.date);
+                    const isPast = selectedEvent.status === "completed" || (eDate ? eDate < new Date() : false);
                     const badge = getTypeBadge(selectedEvent.type);
                     return (
                       <div className="flex flex-wrap items-center gap-2">
