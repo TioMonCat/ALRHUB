@@ -113,7 +113,7 @@ export interface TeamEvent {
   track: string;
   car: string;
   date: string;
-  type: "Carrera de Club" | "Resistencia" | "Sprint" | "Entrenamiento";
+  type: "Carrera de Club" | "Resistencia" | "Sprint" | "Entrenamiento" | "Qualy" | "Reunión" | "Práctica" | "Test" | string;
   description?: string;
   status: "scheduled" | "completed";
   results?: Array<{

@@ -11,6 +11,7 @@ import Inicio from "./components/Inicio";
 import Noticias from "./components/Noticias";
 import Roster from "./components/Roster";
 import Temporada from "./components/Temporada";
+import Calendario from "./components/Calendario";
 import Asistencia from "./components/Asistencia";
 import GestionAdmin from "./components/GestionAdmin";
 import EvaluarPostulaciones from "./components/EvaluarPostulaciones";
@@ -72,7 +73,7 @@ const sanitizeForFirestore = <T,>(data: T): T => {
 export default function App() {
 
   // Navigation Menu options
-  type TabType = "inicio" | "noticias" | "roster" | "temporada" | "garaje" | "asistencia" | "gestion_admin" | "evaluar_postulaciones" | "pilot_profile";
+  type TabType = "inicio" | "noticias" | "roster" | "temporada" | "calendario" | "garaje" | "asistencia" | "gestion_admin" | "evaluar_postulaciones" | "pilot_profile";
   const [activeTab, setActiveTab] = useState<TabType>("inicio");
   const [selectedPilotId, setSelectedPilotId] = useState<string | null>(null);
 
@@ -1200,6 +1201,7 @@ export default function App() {
     { id: "noticias", name: "Noticias y anuncios", icon: FileText, requiresPilot: true },
     { id: "roster", name: "Roster oficial", icon: Award, requiresPilot: true },
     { id: "temporada", name: "Temporada Standings", icon: Trophy, requiresPilot: true },
+    { id: "calendario", name: "Calendario", icon: Calendar, requiresPilot: true },
     { id: "asistencia", name: "Asistencia RSVP", icon: Clock, requiresPilot: true },
     { id: "garaje", name: "Setups", icon: Sliders, requiresPilot: true },
     { id: "gestion_admin", name: "Gestión Admin", icon: Settings, requiresAdmin: true },
@@ -1780,6 +1782,16 @@ export default function App() {
                   isLoading={false}
                   pilots={allUsers}
                   dbReadOnly={!!dbError?.hasError}
+                />
+              )}
+
+              {/* TAB: CALENDARIO DE CARRERAS */}
+              {activeTab === "calendario" && isApprovedMember && (
+                <Calendario
+                  events={events}
+                  currentUserProfile={resolvedProfile}
+                  dbReadOnly={!!dbError?.hasError}
+                  onNavigate={(view) => setActiveTab(view as TabType)}
                 />
               )}
 
