@@ -15,6 +15,51 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", service: "Sim Racing Garage Manager" });
 });
 
+async function fetchGeminiWithFallback(prompt: string, apiKey: string): Promise<string> {
+  const models = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro",
+  ];
+
+  let lastErrorMsg = "";
+
+  for (const model of models) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const geminiRes = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      });
+
+      if (geminiRes.ok) {
+        const data = await geminiRes.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return text;
+      }
+
+      const errorData = await geminiRes.json().catch(() => ({}));
+      lastErrorMsg = errorData.error?.message || geminiRes.statusText;
+
+      if (geminiRes.status === 400 || geminiRes.status === 401 || geminiRes.status === 403) {
+        throw new Error(`Error en Gemini (${geminiRes.status}): ${lastErrorMsg}`);
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes("Error en Gemini")) {
+        throw err;
+      }
+      lastErrorMsg = err.message;
+    }
+  }
+
+  throw new Error(`Error en Gemini: ${lastErrorMsg || "No se pudo conectar con ningún modelo."}`);
+}
+
 // Gemini Proxy Endpoints
 app.post("/api/gemini/consultar", async (req, res) => {
   try {
@@ -66,26 +111,7 @@ ${contextString}
 "${preguntaPiloto}"
 `;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    });
-
-    if (!geminiRes.ok) {
-      const errorData = await geminiRes.json().catch(() => ({}));
-      return res.status(geminiRes.status).json({
-        error: `Error en Gemini (${geminiRes.status}): ${
-          errorData.error?.message || geminiRes.statusText
-        }`,
-      });
-    }
-
-    const data = await geminiRes.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const rawText = await fetchGeminiWithFallback(prompt, apiKey);
     res.json({ text: rawText || "No se obtuvo respuesta del Ingeniero ALR." });
   } catch (err: any) {
     console.error("Error en /api/gemini/consultar:", err);
@@ -159,30 +185,7 @@ ${JSON.stringify(input.fieldsSummary || input.currentValues, null, 2)}
 "${input.userQuery}"
 `;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const geminiRes = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    });
-
-    if (!geminiRes.ok) {
-      const errorData = await geminiRes.json().catch(() => ({}));
-      return res.status(geminiRes.status).json({
-        error: `Error en Gemini (${geminiRes.status}): ${
-          errorData.error?.message || geminiRes.statusText
-        }`,
-      });
-    }
-
-    const data = await geminiRes.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      return res.status(500).json({ error: "Gemini devolvió una respuesta vacía." });
-    }
-
+    const rawText = await fetchGeminiWithFallback(prompt, apiKey);
     res.json({ rawText });
   } catch (err: any) {
     console.error("Error en /api/gemini/optimizar:", err);

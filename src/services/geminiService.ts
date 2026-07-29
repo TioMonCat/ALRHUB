@@ -97,6 +97,56 @@ export function hasApiKey(): boolean {
   return Boolean(getApiKey());
 }
 
+async function executeGeminiRequest(prompt: string, apiKey: string): Promise<string> {
+  const models = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro",
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const model of models) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return text;
+      }
+
+      const errorData = await response.json().catch(() => ({}));
+      const errMsg = errorData.error?.message || response.statusText;
+      lastError = new Error(`Error con modelo ${model} (${response.status}): ${errMsg}`);
+
+      // Si el error es 404 (modelo no disponible en este plan/clave), continuamos al siguiente modelo
+      if (response.status !== 404) {
+        // Si es error de cuota/clave inválida (400, 401, 403), no sirve probar otros modelos con la misma clave
+        if (response.status === 400 || response.status === 401 || response.status === 403) {
+          throw new Error(`Error en API Key de Gemini (${response.status}): ${errMsg}`);
+        }
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes("API Key")) {
+        throw err;
+      }
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("No se pudo obtener respuesta de ningún modelo de Gemini disponible.");
+}
+
 /**
  * Consulta al Ingeniero Jefe de Pista Virtual (Ingeniero ALR) enviando
  * la pregunta del piloto y opcionalmente el contexto de setups de Firebase.
@@ -129,12 +179,12 @@ export async function consultarIngenieroALR(
     // Si falla por red o 404, intentar fallback cliente
   }
 
-  // 2. Fallback cliente si existe API Key en import.meta.env / process.env
+  // 2. Fallback cliente si existe API Key en localStorage / import.meta.env / process.env
   const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error(
-      "La API Key de Gemini no está configurada. Por favor, asegúrate de haber agregado tu clave GEMINI_API_KEY en el panel de Secretos / Variables de Entorno."
+      "La API Key de Gemini no está configurada. Por favor, asegúrate de haber agregado tu clave GEMINI_API_KEY haciendo clic en el botón 'API Key' de la pantalla."
     );
   }
 
@@ -147,48 +197,7 @@ export async function consultarIngenieroALR(
     )}\n\n${preguntaPiloto}`;
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Error en la respuesta de la API de Gemini (${response.status}): ${
-          errorData.error?.message || response.statusText
-        }`
-      );
-    }
-
-    const data = await response.json();
-    const textoRespuesta = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!textoRespuesta) {
-      throw new Error("La API de Gemini devolvió una respuesta vacía o sin candidatos válidos.");
-    }
-
-    return textoRespuesta;
-  } catch (error: any) {
-    console.error("Error al consultar al Ingeniero ALR vía Gemini:", error);
-    throw error;
-  }
+  return executeGeminiRequest(prompt, apiKey);
 }
 
 /**
@@ -288,47 +297,7 @@ ${JSON.stringify(input.fieldsSummary || input.currentValues, null, 2)}
 "${input.userQuery}"
 `;
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Error en la respuesta de Gemini (${response.status}): ${
-          errorData.error?.message || response.statusText
-        }`
-      );
-    }
-
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!rawText) {
-      throw new Error("Gemini devolvió una respuesta vacía.");
-    }
-
-    return extraerAjustesIngeniero(rawText);
-  } catch (error: any) {
-    console.error("Error al optimizar setup con Ingeniero ALR:", error);
-    throw error;
-  }
+  const rawText = await executeGeminiRequest(prompt, apiKey);
+  return extraerAjustesIngeniero(rawText);
 }
 
