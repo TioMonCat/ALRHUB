@@ -94,7 +94,9 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
                   {pilot.displayName}
                 </p>
                 {isAdmin && (
-                  <Shield className="w-3.5 h-3.5 text-red-400 flex-shrink-0" title="Administrador" />
+                  <span title="Administrador">
+                    <Shield className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                  </span>
                 )}
               </div>
               <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-stone-500">
@@ -197,7 +199,9 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
                   {pilot.displayName}
                 </p>
                 {isAdmin && (
-                  <Shield className="w-3.5 h-3.5 text-red-400/70 flex-shrink-0" title="Administrador" />
+                  <span title="Administrador">
+                    <Shield className="w-3.5 h-3.5 text-red-400/70 flex-shrink-0" />
+                  </span>
                 )}
               </div>
               <span className="inline-flex text-[8px] font-mono font-bold uppercase tracking-wider text-amber-500/80 bg-amber-950/10 border border-amber-900/10 px-1.5 py-0.5 rounded">

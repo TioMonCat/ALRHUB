@@ -118,7 +118,7 @@ export interface TeamEvent {
   status: "scheduled" | "completed";
   results?: Array<{
     position: string;
-    name: string;
+    name?: string;
     time?: string;
     points: number;
     category?: "GT3" | "LMP2";

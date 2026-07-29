@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { CarSetup, SetupTemplate, SetupSection, SetupField, FieldType } from "../types";
-import { ArrowLeft, Save, Plus, Trash2, Info, Compass, Clock, Download } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, Info, Compass, Clock, Download, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { exportSetupToIni } from "./ALRIniParser";
+import { SetupAiAssistantModal } from "./SetupAiAssistantModal";
 
 const getCarImage = (carName: string) => {
   const c = carName.toUpperCase();
@@ -573,6 +574,13 @@ export default function SetupDetail({
 }: SetupDetailProps) {
   const readOnly = passedReadOnly || dbReadOnly;
   const [values, setValues] = useState<Record<string, string>>({ ...setup.values });
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
+  const handleApplyAiChanges = (changes: Record<string, string>) => {
+    const nextValues = { ...values, ...changes };
+    setValues(nextValues);
+    onUpdateSetupValues(nextValues);
+  };
 
   const effectiveSections = setup.customSections || template.sections;
 
@@ -956,6 +964,14 @@ export default function SetupDetail({
           >
             <Download className="w-3.5 h-3.5 text-black stroke-[3]" />
             Exportar como .ini
+          </button>
+
+          <button
+            onClick={() => setIsAiModalOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-black hover:bg-emerald-300 transition-all uppercase font-mono bg-emerald-400 border border-emerald-400 px-3.5 py-2 rounded font-black cursor-pointer shadow-lg shadow-emerald-500/20"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-black stroke-[3] animate-pulse" />
+            🤖 Ajustar con IA (Ingeniero ALR)
           </button>
         </div>
 
@@ -1765,6 +1781,17 @@ export default function SetupDetail({
           </div>
         )}
       </div>
+
+      {/* MODAL DE ASISTENCIA E INGENIERÍA IA (INGENIERO ALR) */}
+      <SetupAiAssistantModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        setup={setup}
+        template={template}
+        currentValues={values}
+        onApplyChanges={handleApplyAiChanges}
+        readOnly={readOnly}
+      />
     </div>
   );
 }

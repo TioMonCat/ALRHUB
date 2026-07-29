@@ -36,6 +36,7 @@ export default function Temporada({
   const [editingStrategyNotes, setEditingStrategyNotes] = useState("");
   const [resultsRows, setResultsRows] = useState<Array<{
     position: string;
+    name?: string;
     points: number;
     category: "GT3" | "LMP2";
   }>>([]);
