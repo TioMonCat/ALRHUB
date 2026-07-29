@@ -4,8 +4,10 @@ import {
   optimizarSetupConIngenieroALR,
   OptimizationResponse,
   SetupFieldSummary,
+  hasApiKey,
 } from "../services/geminiService";
 import { exportSetupToIni } from "./ALRIniParser";
+import { ApiKeyConfigModal } from "./ApiKeyConfigModal";
 import {
   Bot,
   User,
@@ -21,6 +23,7 @@ import {
   Zap,
   Sliders,
   Terminal,
+  Key,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -57,6 +60,7 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState(0);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -253,6 +257,14 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
 
           <div className="flex items-center space-x-2">
             <button
+              onClick={() => setIsApiKeyModalOpen(true)}
+              title="Configurar Gemini API Key"
+              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 px-2.5 py-1.5 rounded-lg font-mono transition-all cursor-pointer"
+            >
+              <Key className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">API Key</span>
+            </button>
+            <button
               onClick={handleExportIni}
               title="Exportar archivo .ini actualizado"
               className="flex items-center gap-1.5 text-xs text-black bg-cyan-400 hover:bg-cyan-300 px-3 py-1.5 rounded-lg font-bold font-mono transition-all cursor-pointer"
@@ -400,9 +412,19 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
           )}
 
           {error && (
-            <div className="p-3.5 bg-red-950/50 border border-red-500/40 rounded-xl text-red-300 text-xs flex items-center gap-2 font-mono">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-              <span>{error}</span>
+            <div className="p-3.5 bg-red-950/50 border border-red-500/40 rounded-xl text-red-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsApiKeyModalOpen(true)}
+                className="px-3 py-1 bg-red-900/60 hover:bg-red-800 border border-red-500/50 text-white rounded-lg text-xs font-bold font-mono transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <Key className="w-3.5 h-3.5 text-emerald-400" />
+                Configurar API Key
+              </button>
             </div>
           )}
 
@@ -455,6 +477,12 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
           </button>
         </div>
       </div>
+
+      <ApiKeyConfigModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onKeyUpdated={() => setError(null)}
+      />
     </div>
   );
 };

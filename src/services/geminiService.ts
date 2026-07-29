@@ -66,7 +66,13 @@ export function extraerAjustesIngeniero(texto: string): OptimizationResponse {
   };
 }
 
-function getApiKey(): string {
+export function getApiKey(): string {
+  if (typeof window !== "undefined") {
+    const localKey = localStorage.getItem("alr_gemini_api_key");
+    if (localKey && localKey.trim()) {
+      return localKey.trim();
+    }
+  }
   return (
     import.meta.env.VITE_GEMINI_API_KEY ||
     (typeof process !== "undefined" && process.env?.GEMINI_API_KEY) ||
@@ -75,23 +81,60 @@ function getApiKey(): string {
   );
 }
 
+export function saveApiKey(key: string): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("alr_gemini_api_key", key.trim());
+  }
+}
+
+export function removeApiKey(): void {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("alr_gemini_api_key");
+  }
+}
+
+export function hasApiKey(): boolean {
+  return Boolean(getApiKey());
+}
+
 /**
  * Consulta al Ingeniero Jefe de Pista Virtual (Ingeniero ALR) enviando
  * la pregunta del piloto y opcionalmente el contexto de setups de Firebase.
- *
- * @param preguntaPiloto Pregunta o consulta técnica enviada por el piloto.
- * @param contextoSetupsFirebase Lista opcional de setups provistos desde Firebase.
- * @returns Promesa con la respuesta en texto generada por Gemini.
  */
 export async function consultarIngenieroALR(
   preguntaPiloto: string,
   contextoSetupsFirebase?: SetupContext[]
 ): Promise<string> {
+  // 1. Intentar servidor proxy interno primero (/api/gemini/consultar)
+  try {
+    const apiRes = await fetch("/api/gemini/consultar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preguntaPiloto, contextoSetupsFirebase }),
+    });
+
+    if (apiRes.ok) {
+      const data = await apiRes.json();
+      if (data.text) return data.text;
+    } else {
+      const errorJson = await apiRes.json().catch(() => ({}));
+      if (apiRes.status !== 404 && errorJson.error) {
+        throw new Error(errorJson.error);
+      }
+    }
+  } catch (err: any) {
+    if (err.message && !err.message.includes("404") && !err.message.includes("Failed to fetch")) {
+      throw err;
+    }
+    // Si falla por red o 404, intentar fallback cliente
+  }
+
+  // 2. Fallback cliente si existe API Key en import.meta.env / process.env
   const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error(
-      "La API Key no está configurada. Por favor, configura tu API Key de Gemini en el panel de Configuración / Secretos (Secrets) de AI Studio como GEMINI_API_KEY o VITE_GEMINI_API_KEY."
+      "La API Key de Gemini no está configurada. Por favor, asegúrate de haber agregado tu clave GEMINI_API_KEY en el panel de Secretos / Variables de Entorno."
     );
   }
 
@@ -155,11 +198,38 @@ export async function consultarIngenieroALR(
 export async function optimizarSetupConIngenieroALR(
   input: OptimizationInput
 ): Promise<OptimizationResponse> {
+  // 1. Intentar servidor proxy interno primero (/api/gemini/optimizar)
+  try {
+    const apiRes = await fetch("/api/gemini/optimizar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+
+    if (apiRes.ok) {
+      const data = await apiRes.json();
+      if (data.rawText) {
+        return extraerAjustesIngeniero(data.rawText);
+      }
+    } else {
+      const errorJson = await apiRes.json().catch(() => ({}));
+      if (apiRes.status !== 404 && errorJson.error) {
+        throw new Error(errorJson.error);
+      }
+    }
+  } catch (err: any) {
+    if (err.message && !err.message.includes("404") && !err.message.includes("Failed to fetch")) {
+      throw err;
+    }
+    // Si falla por red o 404, intentar fallback cliente
+  }
+
+  // 2. Fallback cliente
   const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error(
-      "La API Key no está configurada. Por favor, agrega tu API Key de Gemini en el panel de Configuración / Secretos (Secrets) de la plataforma."
+      "La API Key de Gemini no está configurada. Por favor, asegúrate de haber agregado tu clave GEMINI_API_KEY en el panel de Secretos / Variables de Entorno de AI Studio."
     );
   }
 
