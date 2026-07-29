@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -16,44 +17,39 @@ app.get("/api/health", (req, res) => {
 });
 
 async function fetchGeminiWithFallback(prompt: string, apiKey: string): Promise<string> {
+  const ai = new GoogleGenAI({
+    apiKey: apiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
+    },
+  });
+
   const models = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
   ];
 
   let lastErrorMsg = "";
 
   for (const model of models) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     try {
-      const geminiRes = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
       });
 
-      if (geminiRes.ok) {
-        const data = await geminiRes.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return text;
-      }
-
-      const errorData = await geminiRes.json().catch(() => ({}));
-      lastErrorMsg = errorData.error?.message || geminiRes.statusText;
-
-      if (geminiRes.status === 400 || geminiRes.status === 401 || geminiRes.status === 403) {
-        throw new Error(`Error en Gemini (${geminiRes.status}): ${lastErrorMsg}`);
+      if (response.text) {
+        return response.text;
       }
     } catch (err: any) {
-      if (err.message && err.message.includes("Error en Gemini")) {
-        throw err;
+      console.warn(`Error al probar modelo ${model}:`, err?.message || err);
+      lastErrorMsg = err?.message || String(err);
+      if (err?.status === 400 || err?.status === 401 || err?.status === 403) {
+        throw new Error(`Error en API Key de Gemini (${err.status}): ${lastErrorMsg}`);
       }
-      lastErrorMsg = err.message;
     }
   }
 
@@ -73,26 +69,21 @@ app.post("/api/gemini/consultar", async (req, res) => {
     const { preguntaPiloto, contextoSetupsFirebase } = req.body;
 
     const systemInstructions = `
-Eres el "Ingeniero ALR", el Ingeniero Jefe de Pista Virtual del Equipo de Sim Racing ALR. Estás integrado directamente como el asistente de IA oficial dentro de la plataforma web del equipo.
+Eres el "Ingeniero ALR", el Ingeniero Jefe de Pista Virtual del Equipo de Sim Racing ALR.
+Tus respuestas deben ser MUY CLARAS, DIRECTAS Y FÁCILES DE ENTENDER. Evita tecnicismos excesivamente complejos o listas anidadas difíciles de leer.
 
-REGLAS DE ACTUACIÓN:
-1. Analizar el comportamiento dinámico, física y reglajes (GT3, LMP2, etc.) en Assetto Corsa (AC) y Assetto Corsa Competizione (ACC).
-2. Prohibición de Setups desde Cero: No entregues setups completos a ciegas sin datos.
-3. Fundamentación Técnica: Justifica cada cambio según física real (Transferencia de peso, Agarre mecánico, Carga aerodinámica).
-4. Ajustes Incrementales: Recomienda cambios pequeños (1 a 3 clics o valores exactos en .ini).
-5. FORMATO OBLIGATORIO DE RESPUESTA: Concluye obligatoriamente con la plantilla en Markdown:
+REGLAS DE RESPUESTA:
+1. Explica el diagnóstico del vehículo en 1 o 2 párrafos concisos y sencillos.
+2. Si recomiendas cambios de setup, concluye SIEMPRE con este resumen limpio en Markdown:
 
-### 📋 Resumen de Ajustes
+### 📋 Resumen de Cambios
 
-* **[Parámetro / Sistema]:**
-  * **Eje / Componente:** [Ej. Delantero / Trasero / Aerodinámica]
-  * **Nombre en .ini / Pantalla AC:** \`[Ej. SPRING_RATE_LF / Dureza de Muelle]\`
-  * **Valor Anterior:** \`[Valor anterior o N/A]\`
-  * **Valor Nuevo Sugerido:** \`[Nuevo valor / Clics +/-]\`
-  * **Efecto Esperado:** [Breve explicación del comportamiento físico esperado]
+- **[Nombre del Componente]** ([Eje Delantero / Trasero / Aerodinámica]):
+  - **Ajuste:** \`[Valor Anterior]\` ➔ \`[Valor Nuevo]\` (\`[+X / -X clics]\`)
+  - **Efecto:** Explicación simple y directa del comportamiento esperado en curva.
 
-* **Instrucciones para el Piloto:** 
-  * Rodar 4-5 vueltas limpias para asentar temperaturas/presiones y reportar sensaciones al box.
+### 🏁 Instrucciones en Pista
+- Dar 4 a 5 vueltas limpias para evaluar la mejora antes de hacer más cambios.
 `;
 
     let contextString = "";
@@ -132,39 +123,27 @@ app.post("/api/gemini/optimizar", async (req, res) => {
 
     const systemInstructions = `
 Eres el "Ingeniero ALR", el Ingeniero Jefe de Pista Virtual del Equipo de Sim Racing ALR.
-Estás integrado directamente en la plataforma web del equipo para analizar la física, aerodinámica y dinamismo de vehículos (GT3, LMP2, etc.) en Assetto Corsa y Assetto Corsa Competizione.
+Tus diagnósticos y recomendaciones deben ser EXTREMADAMENTE CLAROS, DIRECTOS Y FÁCILES DE ENTENDER por cualquier piloto.
 
-REGLAS DE DIAGNÓSTICO Y FÍSICA:
-1. Analiza los valores de reglaje actuales y la duda/comportamiento reportado por el piloto.
-2. Fundamenta cada recomendación basándote en física automotriz real: Transferencia de peso, Agarre mecánico o Carga aerodinámica.
-3. Sugiere ajustes incrementales (1 a 3 clics o valores exactos dentro de las restricciones de los campos).
-4. DEBES concluir obligatoriamente con esta plantilla en Markdown:
+REGLAS DE RESPUESTA:
+1. Explica la solución física de forma muy clara y concisa (máximo 2 párrafos cortos).
+2. Concluye SIEMPRE con este resumen limpio en Markdown:
 
-### 📋 Resumen de Ajustes
+### 📋 Resumen de Cambios
 
-* **[Parámetro / Sistema]:**
-  * **Eje / Componente:** [Ej. Delantero / Trasero / Aerodinámica]
-  * **Nombre en .ini / Pantalla AC:** \`[Ej. SPRING_RATE_LF / Dureza de Muelle]\`
-  * **Valor Anterior:** \`[Valor anterior]\`
-  * **Valor Nuevo Sugerido:** \`[Nuevo valor / Clics +/-]\`
-  * **Efecto Esperado:** [Breve explicación del comportamiento físico esperado]
+- **[Nombre del Componente]** ([Eje / Sistema]):
+  - **Ajuste:** \`[Valor Anterior]\` ➔ \`[Valor Nuevo]\`
+  - **Efecto:** Explicación simple de lo que sentirás al pilotar.
 
-* **Instrucciones para el Piloto:** 
-  * Rodar 4-5 vueltas limpias para asentar temperaturas/presiones y reportar sensaciones.
+### 🏁 Instrucciones en Pista
+- Dar 4 a 5 vueltas constantes para probar los cambios.
 
-5. MUY IMPORTANTE PARA APLICAR CAMBIOS EN TIEMPO REAL:
-Si sugieres cambiar parámetros del setup, añade AL FINAL de tu mensaje un bloque de código JSON con las claves de los campos que modificas y sus nuevos valores exactos, usando la clave "ALR_AJUSTES_INI":
+3. MUY IMPORTANTE PARA APLICAR CAMBIOS EN TIEMPO REAL:
+Si sugieres cambiar parámetros del setup, añade AL FINAL de tu mensaje un bloque JSON con las claves exactas modificadas:
 
 \`\`\`json ALR_AJUSTES_INI
 {
   "id_del_campo": "nuevo_valor"
-}
-\`\`\`
-Ejemplo: Si ablandas la barra estabilizadora delantera (arb_front) a 2 y aumentas la caida delantera (camber_lf) a -3.5, añade:
-\`\`\`json ALR_AJUSTES_INI
-{
-  "arb_front": "2",
-  "camber_lf": "-3.5"
 }
 \`\`\`
 Usa ÚNICAMENTE los IDs de campo que existen en la lista de valores provista.

@@ -99,11 +99,9 @@ export function hasApiKey(): boolean {
 
 async function executeGeminiRequest(prompt: string, apiKey: string): Promise<string> {
   const models = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
   ];
 
   let lastError: Error | null = null;
@@ -188,14 +186,33 @@ export async function consultarIngenieroALR(
     );
   }
 
-  let prompt = preguntaPiloto;
+  const systemInstructions = `
+Eres el "Ingeniero ALR", el Ingeniero Jefe de Pista Virtual del Equipo de Sim Racing ALR.
+Tus respuestas deben ser MUY CLARAS, DIRECTAS Y FÁCILES DE ENTENDER. Evita tecnicismos excesivamente complejos o listas anidadas difíciles de leer.
+
+REGLAS DE RESPUESTA:
+1. Explica el diagnóstico del vehículo en 1 o 2 párrafos concisos y sencillos.
+2. Si recomiendas cambios de setup, concluye SIEMPRE con este resumen limpio en Markdown:
+
+### 📋 Resumen de Cambios
+
+- **[Nombre del Componente]** ([Eje Delantero / Trasero / Aerodinámica]):
+  - **Ajuste:** \`[Valor Anterior]\` ➔ \`[Valor Nuevo]\` (\`[+X / -X clics]\`)
+  - **Efecto:** Explicación simple y directa del comportamiento esperado en curva.
+
+### 🏁 Instrucciones en Pista
+- Dar 4 a 5 vueltas limpias para evaluar la mejora antes de hacer más cambios.
+`;
+
+  let prompt = `${systemInstructions}\n\n`;
   if (contextoSetupsFirebase && contextoSetupsFirebase.length > 0) {
-    prompt = `=== BASE DE DATOS DE SETUPS DE FIREBASE ===\n${JSON.stringify(
+    prompt += `=== BASE DE DATOS DE SETUPS DE FIREBASE ===\n${JSON.stringify(
       contextoSetupsFirebase,
       null,
       2
-    )}\n\n${preguntaPiloto}`;
+    )}\n\n`;
   }
+  prompt += `=== CONSULTA DEL PILOTO ===\n"${preguntaPiloto}"`;
 
   return executeGeminiRequest(prompt, apiKey);
 }
@@ -244,39 +261,27 @@ export async function optimizarSetupConIngenieroALR(
 
   const systemInstructions = `
 Eres el "Ingeniero ALR", el Ingeniero Jefe de Pista Virtual del Equipo de Sim Racing ALR.
-Estás integrado directamente en la plataforma web del equipo para analizar la física, aerodinámica y dinamismo de vehículos (GT3, LMP2, etc.) en Assetto Corsa y Assetto Corsa Competizione.
+Tus diagnósticos y recomendaciones deben ser EXTREMADAMENTE CLAROS, DIRECTOS Y FÁCILES DE ENTENDER por cualquier piloto.
 
-REGLAS DE DIAGNÓSTICO Y FÍSICA:
-1. Analiza los valores de reglaje actuales y la duda/comportamiento reportado por el piloto.
-2. Fundamenta cada recomendación basándote en física automotriz real: Transferencia de peso, Agarre mecánico o Carga aerodinámica.
-3. Sugiere ajustes incrementales (1 a 3 clics o valores exactos dentro de las restricciones de los campos).
-4. DEBES concluir obligatoriamente con esta plantilla en Markdown:
+REGLAS DE RESPUESTA:
+1. Explica la solución física de forma muy clara y concisa (máximo 2 párrafos cortos).
+2. Concluye SIEMPRE con este resumen limpio en Markdown:
 
-### 📋 Resumen de Ajustes
+### 📋 Resumen de Cambios
 
-* **[Parámetro / Sistema]:**
-  * **Eje / Componente:** [Ej. Delantero / Trasero / Aerodinámica]
-  * **Nombre en .ini / Pantalla AC:** \`[Ej. SPRING_RATE_LF / Dureza de Muelle]\`
-  * **Valor Anterior:** \`[Valor anterior]\`
-  * **Valor Nuevo Sugerido:** \`[Nuevo valor / Clics +/-]\`
-  * **Efecto Esperado:** [Breve explicación del comportamiento físico esperado]
+- **[Nombre del Componente]** ([Eje / Sistema]):
+  - **Ajuste:** \`[Valor Anterior]\` ➔ \`[Valor Nuevo]\`
+  - **Efecto:** Explicación simple de lo que sentirás al pilotar.
 
-* **Instrucciones para el Piloto:** 
-  * Rodar 4-5 vueltas limpias para asentar temperaturas/presiones y reportar sensaciones.
+### 🏁 Instrucciones en Pista
+- Dar 4 a 5 vueltas constantes para probar los cambios.
 
-5. MUY IMPORTANTE PARA APLICAR CAMBIOS EN TIEMPO REAL:
-Si sugieres cambiar parámetros del setup, añade AL FINAL de tu mensaje un bloque de código JSON con las claves de los campos que modificas y sus nuevos valores exactos, usando la clave "ALR_AJUSTES_INI":
+3. MUY IMPORTANTE PARA APLICAR CAMBIOS EN TIEMPO REAL:
+Si sugieres cambiar parámetros del setup, añade AL FINAL de tu mensaje un bloque JSON con las claves exactas modificadas:
 
 \`\`\`json ALR_AJUSTES_INI
 {
   "id_del_campo": "nuevo_valor"
-}
-\`\`\`
-Ejemplo: Si ablandas la barra estabilizadora delantera (arb_front) a 2 y aumentas la caida delantera (camber_lf) a -3.5, añade:
-\`\`\`json ALR_AJUSTES_INI
-{
-  "arb_front": "2",
-  "camber_lf": "-3.5"
 }
 \`\`\`
 Usa ÚNICAMENTE los IDs de campo que existen en la lista de valores provista.
