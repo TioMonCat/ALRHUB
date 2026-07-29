@@ -66,6 +66,15 @@ export function extraerAjustesIngeniero(texto: string): OptimizationResponse {
   };
 }
 
+function getApiKey(): string {
+  return (
+    import.meta.env.VITE_GEMINI_API_KEY ||
+    (typeof process !== "undefined" && process.env?.GEMINI_API_KEY) ||
+    (typeof process !== "undefined" && process.env?.VITE_GEMINI_API_KEY) ||
+    ""
+  );
+}
+
 /**
  * Consulta al Ingeniero Jefe de Pista Virtual (Ingeniero ALR) enviando
  * la pregunta del piloto y opcionalmente el contexto de setups de Firebase.
@@ -78,11 +87,11 @@ export async function consultarIngenieroALR(
   preguntaPiloto: string,
   contextoSetupsFirebase?: SetupContext[]
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error(
-      "La API Key no está configurada. Por favor, define VITE_GEMINI_API_KEY en las variables de entorno."
+      "La API Key no está configurada. Por favor, configura tu API Key de Gemini en el panel de Configuración / Secretos (Secrets) de AI Studio como GEMINI_API_KEY o VITE_GEMINI_API_KEY."
     );
   }
 
@@ -146,11 +155,11 @@ export async function consultarIngenieroALR(
 export async function optimizarSetupConIngenieroALR(
   input: OptimizationInput
 ): Promise<OptimizationResponse> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = getApiKey();
 
   if (!apiKey) {
     throw new Error(
-      "La API Key no está configurada. Por favor, define VITE_GEMINI_API_KEY en las variables de entorno."
+      "La API Key no está configurada. Por favor, agrega tu API Key de Gemini en el panel de Configuración / Secretos (Secrets) de la plataforma."
     );
   }
 
