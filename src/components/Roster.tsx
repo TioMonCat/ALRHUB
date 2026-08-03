@@ -18,7 +18,7 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
   );
 
   // Group pilots into active car configurations and reserves:
-  // - Ferrari 296 | GT3 -> Dorsals 05, 08
+  // - Lexus RC F | GT3 -> Dorsals 05, 08
   // - Oreca 07 | LMP2 -> Dorsals 32, 43
   // - Banca / Reserva -> everything else (empty, "--", other dorsals)
   const ferrariPilots = pilots.filter(
@@ -311,7 +311,7 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
         <div className="space-y-8 animate-fade-in">
           {/* Active squads list */}
           
-          {/* Ferrari 296 GT3 Section */}
+          {/* Lexus RC F | GT3 Section */}
           <div className="bg-[#141011]/40 border border-red-500/15 rounded-2xl p-5 md:p-6 space-y-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-red-950/40 pb-3">
               <div className="flex items-center gap-3">
@@ -320,7 +320,7 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-white uppercase tracking-wider font-mono">
-                    Ferrari 296 GT3
+                    Lexus RC F | GT3
                   </h3>
                   <p className="text-[10px] text-red-500/80 font-mono uppercase tracking-widest">
                     División GT3 • Asientos oficiales #05 / #08

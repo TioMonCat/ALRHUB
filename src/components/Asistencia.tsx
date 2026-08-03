@@ -1,6 +1,18 @@
 import React, { useState } from "react";
 import { TeamEvent, UserProfile, AttendanceRecord } from "../types";
-import { Check, X, HelpCircle, Save, Clock, Users, Calendar, Sparkles, ClipboardList, Edit3 } from "lucide-react";
+import {
+  Check,
+  X,
+  HelpCircle,
+  Save,
+  Clock,
+  Users,
+  Calendar,
+  Sparkles,
+  ClipboardList,
+  Edit3,
+  MessageSquare,
+} from "lucide-react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { formatLocalTime, formatFullDate, isRaceEvent } from "../dateUtils";
@@ -31,6 +43,8 @@ export default function Asistencia({
   const [isEditingStrategy, setIsEditingStrategy] = useState(false);
   const [strategyText, setStrategyText] = useState("");
   const [isSavingStrategy, setIsSavingStrategy] = useState(false);
+
+  const [statusFilter, setStatusFilter] = useState<"all" | "yes" | "maybe" | "no" | "pending">("all");
 
   const activeEvents = events.filter((e) => e.status === "scheduled" && isRaceEvent(e));
 
@@ -361,85 +375,283 @@ export default function Asistencia({
                 )}
               </div>
 
-              {/* Grid of RSVP Responses (Who is doing what) */}
-              <div className="bg-[#111113] border border-stone-800 rounded-xl p-5 space-y-4">
-                <h4 className="text-[10px] font-mono text-stone-400 uppercase tracking-widest border-b border-stone-800/60 pb-2 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-cyan-400" />
-                  RESPUESTAS REGISTRADAS DEL PLANTEL DE PILOTOS
-                </h4>
+              {/* Grid / List of RSVP Responses Grouped by Vehicle */}
+              {(() => {
+                const approvedPilots = pilots.filter(
+                  (u) => (u.role === "piloto" || u.role === "admin") && u.status === "aprobado"
+                );
 
-                {getEventRSVPs(currentEvent.id).length === 0 ? (
-                  <p className="text-center py-6 text-stone-500 font-mono text-xs">
-                    Ningún piloto ha declarado asistencia todavía. ¡Sé el primero!
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {getEventRSVPs(currentEvent.id)
-                      .map((record) => {
-                        const pilot = pilots.find((p) => p.uid === record.userId);
-                        return {
-                          ...record,
-                          raceNumber: pilot?.raceNumber || "",
-                        };
-                      })
-                      .sort((a, b) => {
-                        const numA = parseInt(a.raceNumber, 10);
-                        const numB = parseInt(b.raceNumber, 10);
-                        const valA = isNaN(numA) ? 999 : numA;
-                        const valB = isNaN(numB) ? 999 : numB;
-                        if (valA === valB) {
-                          return a.userName.localeCompare(b.userName);
+                const eventRsvps = getEventRSVPs(currentEvent.id);
+
+                const rosterAttendance = approvedPilots.map((p) => {
+                  const rsvp = eventRsvps.find((r) => r.userId === p.uid);
+                  return {
+                    uid: p.uid,
+                    userName: p.displayName,
+                    userPhoto: p.photoURL || "",
+                    raceNumber: p.raceNumber || "",
+                    status: (rsvp?.status || "pending") as "yes" | "maybe" | "no" | "pending",
+                    comments: rsvp?.comments || "",
+                    updatedAt: rsvp?.updatedAt || "",
+                  };
+                });
+
+                const totalCount = rosterAttendance.length;
+                const yesCount = rosterAttendance.filter((r) => r.status === "yes").length;
+                const maybeCount = rosterAttendance.filter((r) => r.status === "maybe").length;
+                const noCount = rosterAttendance.filter((r) => r.status === "no").length;
+                const pendingCount = rosterAttendance.filter((r) => r.status === "pending").length;
+
+                // Group by Vehicle and Dorsals
+                const ferrariList = rosterAttendance.filter(
+                  (r) => r.raceNumber === "05" || r.raceNumber === "08"
+                );
+                const orecaList = rosterAttendance.filter(
+                  (r) => r.raceNumber === "32" || r.raceNumber === "43"
+                );
+                const reserveList = rosterAttendance.filter(
+                  (r) =>
+                    r.raceNumber !== "05" &&
+                    r.raceNumber !== "08" &&
+                    r.raceNumber !== "32" &&
+                    r.raceNumber !== "43"
+                );
+
+                const vehicleGroups = [
+                  {
+                    id: "lexus",
+                    title: "Lexus RC F | GT3",
+                    dorsals: ["05", "08"],
+                    badgeColor: "border-red-800/40 text-red-400 bg-red-950/40",
+                    headerBg: "border-red-900/40 bg-red-950/20 text-red-400",
+                    pilots: ferrariList,
+                  },
+                  {
+                    id: "oreca",
+                    title: "Oreca 07 LMP2",
+                    dorsals: ["32", "43"],
+                    badgeColor: "border-fuchsia-800/40 text-fuchsia-400 bg-fuchsia-950/40",
+                    headerBg: "border-fuchsia-900/40 bg-fuchsia-950/20 text-fuchsia-400",
+                    pilots: orecaList,
+                  },
+                  {
+                    id: "reserves",
+                    title: "Pilotos de Reserva / Plantel Libre",
+                    dorsals: [],
+                    badgeColor: "border-stone-800 text-stone-400 bg-stone-900",
+                    headerBg: "border-stone-800 bg-stone-900/60 text-stone-300",
+                    pilots: reserveList,
+                  },
+                ];
+
+                const filterPilot = (item: typeof rosterAttendance[0]) => {
+                  if (statusFilter === "all") return true;
+                  return item.status === statusFilter;
+                };
+
+                return (
+                  <div className="bg-[#111113] border border-stone-800 rounded-xl p-4 sm:p-5 space-y-5">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-stone-800/80 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-cyan-400 shrink-0" />
+                        <h4 className="text-xs font-mono font-black text-white uppercase tracking-wider">
+                          Respuestas de Asistencia por Vehículo y Dorsal
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/40 border border-cyan-800/50 px-2.5 py-0.5 rounded-full font-bold">
+                        {yesCount}/{totalCount} Pilotos Confirmados
+                      </span>
+                    </div>
+
+                    {/* Status Filter Tabs */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { id: "all", label: "Todos", count: totalCount, badgeColor: "bg-stone-800 text-stone-300" },
+                        { id: "yes", label: "Confirmados", count: yesCount, badgeColor: "bg-emerald-950/60 text-emerald-400 border border-emerald-800/40" },
+                        { id: "maybe", label: "Duda / Tarde", count: maybeCount, badgeColor: "bg-amber-950/60 text-amber-400 border border-amber-800/40" },
+                        { id: "no", label: "Ausentes", count: noCount, badgeColor: "bg-red-950/60 text-red-400 border border-red-800/40" },
+                        { id: "pending", label: "Sin Responder", count: pendingCount, badgeColor: "bg-stone-900 text-stone-400 border border-stone-800" },
+                      ].map((tab) => {
+                        const isActive = statusFilter === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setStatusFilter(tab.id as any)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              isActive
+                                ? "bg-cyan-950/50 text-cyan-300 border border-cyan-500/40 shadow-[0_0_8px_rgba(6,182,212,0.1)]"
+                                : "bg-stone-900/60 text-stone-400 border border-stone-800/80 hover:bg-stone-900 hover:text-stone-300"
+                            }`}
+                          >
+                            <span>{tab.label}</span>
+                            <span className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold ${tab.badgeColor}`}>
+                              {tab.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Vehicles Breakdown */}
+                    <div className="space-y-6 pt-1">
+                      {vehicleGroups.map((group) => {
+                        const groupFiltered = group.pilots.filter(filterPilot);
+                        if (groupFiltered.length === 0 && statusFilter !== "all") {
+                          return null;
                         }
-                        return valA - valB;
-                      })
-                      .map((record) => (
-                        <div
-                          key={record.id}
-                          className="bg-[#18181A] border border-stone-800/80 p-3 rounded-xl flex items-center justify-between gap-3"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {record.userPhoto ? (
-                              <img src={record.userPhoto} alt={record.userName} className="w-6.5 h-6.5 rounded-full border border-stone-800" />
+
+                        const groupConfirmed = group.pilots.filter((p) => p.status === "yes").length;
+
+                        // Create Dorsal Subgroups (3 pilots per dorsal standard)
+                        const dorsalMap: { [key: string]: typeof rosterAttendance } = {};
+                        
+                        if (group.dorsals.length > 0) {
+                          group.dorsals.forEach((d) => {
+                            dorsalMap[d] = [];
+                          });
+                        }
+
+                        group.pilots.forEach((p) => {
+                          const key = p.raceNumber || "Sin Dorsal";
+                          if (!dorsalMap[key]) {
+                            dorsalMap[key] = [];
+                          }
+                          dorsalMap[key].push(p);
+                        });
+
+                        const dorsalKeys = Object.keys(dorsalMap);
+
+                        return (
+                          <div key={group.id} className="space-y-3 bg-[#0d0d0f] border border-stone-800/80 rounded-xl p-3.5 sm:p-4">
+                            {/* Main Vehicle Header */}
+                            <div className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-mono font-bold ${group.headerBg}`}>
+                              <div className="flex items-center gap-2">
+                                <span className="uppercase tracking-wider">{group.title}</span>
+                              </div>
+                              <span className="text-[10px] bg-black/50 px-2 py-0.5 rounded border border-white/10">
+                                {groupConfirmed}/{group.pilots.length} Confirmados Total
+                              </span>
+                            </div>
+
+                            {/* Subgroups by Dorsal (Trios de Pilotos) */}
+                            {groupFiltered.length === 0 ? (
+                              <p className="text-[11px] text-stone-500 font-mono italic px-2 py-2">
+                                Sin pilotos con este filtro en este vehículo.
+                              </p>
                             ) : (
-                              <div className="w-6.5 h-6.5 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-[10px] font-black text-white">
-                                {record.userName.charAt(0).toUpperCase()}
+                              <div className="space-y-4 pt-1">
+                                {dorsalKeys.map((dorsalKey) => {
+                                  const dorsalPilots = (dorsalMap[dorsalKey] || []).filter(filterPilot);
+                                  if (dorsalPilots.length === 0 && statusFilter !== "all") {
+                                    return null;
+                                  }
+
+                                  const dorsalConfirmed = (dorsalMap[dorsalKey] || []).filter((p) => p.status === "yes").length;
+                                  const totalInDorsal = (dorsalMap[dorsalKey] || []).length;
+
+                                  return (
+                                    <div key={dorsalKey} className="bg-[#141416] border border-stone-800/70 rounded-xl p-3 space-y-2.5">
+                                      {/* Dorsal Trio Title Header */}
+                                      <div className="flex items-center justify-between border-b border-stone-800/60 pb-2 px-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-300 border border-cyan-800/40">
+                                            {dorsalKey === "Sin Dorsal" ? dorsalKey : `DORSAL #${dorsalKey}`}
+                                          </span>
+                                          <span className="text-[10px] font-mono text-stone-400">
+                                            (Equipo de 3 Pilotos)
+                                          </span>
+                                        </div>
+                                        <span className="text-[9.5px] font-mono text-emerald-400 font-bold bg-emerald-950/30 border border-emerald-900/40 px-2 py-0.5 rounded-full">
+                                          {dorsalConfirmed}/{totalInDorsal} Confirmados
+                                        </span>
+                                      </div>
+
+                                      {/* Pilot Cards for this Dorsal Trio */}
+                                      {dorsalPilots.length === 0 ? (
+                                        <p className="text-[10px] text-stone-500 font-mono italic px-1 py-1">
+                                          Sin pilotos en este dorsal con el filtro activo.
+                                        </p>
+                                      ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                          {dorsalPilots.map((item) => (
+                                            <div
+                                              key={item.uid}
+                                              className="bg-[#18181b] border border-stone-800/90 hover:border-stone-700/90 p-2.5 rounded-xl flex flex-col justify-between gap-2.5 transition-all shadow-sm"
+                                            >
+                                              <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                  {item.userPhoto ? (
+                                                    <img
+                                                      src={item.userPhoto}
+                                                      alt={item.userName}
+                                                      referrerPolicy="no-referrer"
+                                                      className="w-7 h-7 rounded-full border border-stone-800 object-cover shrink-0"
+                                                    />
+                                                  ) : (
+                                                    <div className="w-7 h-7 rounded-full bg-stone-900 border border-stone-800 flex items-center justify-center text-[10px] font-black text-cyan-400 shrink-0">
+                                                      {item.userName.charAt(0).toUpperCase()}
+                                                    </div>
+                                                  )}
+
+                                                  <div className="min-w-0 flex-1">
+                                                    <p className="font-extrabold text-white text-xs truncate" title={item.userName}>
+                                                      {item.userName}
+                                                    </p>
+                                                    <span className="text-[9px] font-mono text-stone-400">
+                                                      Dorsal #{item.raceNumber || "--"}
+                                                    </span>
+                                                  </div>
+                                                </div>
+
+                                                {/* Attendance Badge */}
+                                                <span
+                                                  className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${
+                                                    item.status === "yes"
+                                                      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/50"
+                                                      : item.status === "no"
+                                                      ? "bg-red-950/40 text-red-400 border-red-800/50"
+                                                      : item.status === "maybe"
+                                                      ? "bg-amber-950/40 text-amber-400 border-amber-800/50"
+                                                      : "bg-stone-900/80 text-stone-500 border-stone-800"
+                                                  }`}
+                                                >
+                                                  {item.status === "yes" && "Confirmado"}
+                                                  {item.status === "maybe" && "Duda"}
+                                                  {item.status === "no" && "Ausente"}
+                                                  {item.status === "pending" && "Pendiente"}
+                                                </span>
+                                              </div>
+
+                                              {/* Dedicated Space for Important Notes */}
+                                              {item.comments ? (
+                                                <div className="bg-amber-950/30 border border-amber-800/40 rounded-lg p-2 text-[10.5px] text-amber-200/90 flex items-start gap-2 shadow-inner">
+                                                  <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                                                  <div className="min-w-0 flex-1 leading-snug">
+                                                    <span className="font-mono text-[9px] font-bold text-amber-400 uppercase tracking-wider block mb-0.5">
+                                                      Nota Importante:
+                                                    </span>
+                                                    <p className="whitespace-pre-wrap break-words">{item.comments}</p>
+                                                  </div>
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[10px] font-mono font-extrabold px-1 py-0.5 rounded leading-none shrink-0 border ${
-                                  record.raceNumber === "32" || record.raceNumber === "43"
-                                    ? "bg-amber-950/30 text-amber-400 border-amber-500/20"
-                                    : "bg-[#1d1f27] text-cyan-400 border border-cyan-500/20"
-                                }`} title="Dorsal">
-                                  #{record.raceNumber || "—"}
-                                </span>
-                                <p className="font-extrabold text-white text-xs truncate max-w-[120px]">{record.userName}</p>
-                              </div>
-                              {record.comments && (
-                                <p className="text-[9.5px] text-stone-400 italic truncate mt-0.5 max-w-[150px]" title={record.comments}>
-                                  "{record.comments}"
-                                </p>
-                              )}
-                            </div>
                           </div>
-
-                        <span className={`text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-1 rounded border shadow-inner ${
-                          record.status === "yes"
-                            ? "bg-emerald-950/20 text-emerald-400 border-emerald-900/30"
-                            : record.status === "no"
-                            ? "bg-red-950/20 text-red-000 text-red-400 border-red-900/30"
-                            : "bg-amber-950/20 text-amber-500 border-amber-900/30"
-                        }`}>
-                          {record.status === "yes" && "Confirmado"}
-                          {record.status === "maybe" && "Duda"}
-                          {record.status === "no" && "Ausente"}
-                        </span>
-                      </div>
-                    ))}
+                        );
+                      })}
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })()}
 
             </div>
           )}

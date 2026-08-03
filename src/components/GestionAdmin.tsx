@@ -260,7 +260,7 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
                         {/* Racing Number / Dorsal */}
                         <td className="py-3 px-4 text-center font-mono">
                           {isEditing ? (
-                            carPreference === "Ferrari 296 | GT3" ? (
+                            carPreference === "Lexus RC F | GT3" || carPreference === "Ferrari 296 | GT3" ? (
                               <select
                                 className="bg-[#18181b] border border-stone-800 rounded p-1 text-xs text-white font-mono w-16 text-center focus:outline-none"
                                 value={raceNumber}
@@ -388,7 +388,7 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setCarPreference(val);
-                                if (val === "Ferrari 296 | GT3") {
+                                if (val === "Lexus RC F | GT3" || val === "Ferrari 296 | GT3") {
                                   if (raceNumber !== "05" && raceNumber !== "08" && raceNumber !== "--") {
                                     setRaceNumber("--");
                                   }
@@ -400,7 +400,7 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
                               }}
                             >
                               <option value="">--</option>
-                              <option value="Ferrari 296 | GT3">Ferrari 296 | GT3</option>
+                              <option value="Lexus RC F | GT3">Lexus RC F | GT3</option>
                               <option value="Oreca 07 | LMP2">Oreca 07 | LMP2</option>
                             </select>
                           ) : (

@@ -93,7 +93,7 @@ function checkEligibility(poll: Poll, profile: UserProfile | null): { eligible: 
     const userClass = getUserCategory(profile);
     if (!poll.allowedClasses.includes(userClass)) {
       const displayClasses = poll.allowedClasses.map(c => {
-        if (c === "GT3") return "GT3 (Ferrari)";
+        if (c === "GT3") return "GT3 (Lexus RC F)";
         if (c === "LMP2") return "LMP2 (Oreca)";
         return c;
       });
@@ -598,7 +598,7 @@ export default function Noticias({
                 </span>
                 <div className="space-y-1.5">
                   {[
-                    { id: "GT3", label: "GT3 (Ferrari)" },
+                    { id: "GT3", label: "GT3 (Lexus RC F)" },
                     { id: "LMP2", label: "LMP2 (Oreca)" }
                   ].map((cls) => (
                     <label key={cls.id} className="flex items-center gap-2 cursor-pointer text-xs text-stone-300 hover:text-white select-none">
@@ -1005,7 +1005,7 @@ function PollCard({
             )}
             {poll.allowedClasses && poll.allowedClasses.length > 0 && (
               <span className="block">
-                • Categoría: {poll.allowedClasses.map(c => c === "GT3" ? "GT3 (Ferrari)" : c === "LMP2" ? "LMP2 (Oreca)" : c).join(" / ")}
+                • Categoría: {poll.allowedClasses.map(c => c === "GT3" ? "GT3 (Lexus RC F)" : c === "LMP2" ? "LMP2 (Oreca)" : c).join(" / ")}
               </span>
             )}
           </div>

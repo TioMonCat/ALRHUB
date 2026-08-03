@@ -231,7 +231,7 @@ export default function PilotProfile({ pilot, attendance, onBack }: PilotProfile
                 : "text-stone-400 hover:text-stone-200 border border-transparent"
             }`}
           >
-            Ferrari 296 GT3 (GT3)
+            Lexus RC F | GT3 (GT3)
           </button>
           <button
             onClick={() => setSelectedCar("lmp2")}
@@ -303,9 +303,9 @@ export default function PilotProfile({ pilot, attendance, onBack }: PilotProfile
               )}
               <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${accent.badge}`}>
                 {selectedCar === "all"
-                  ? pilot.carPreference || (isFerrari ? "Ferrari 296 GT3" : isOreca ? "Oreca 07 LMP2" : "Sin Coche Asignado")
+                  ? pilot.carPreference || (isFerrari ? "Lexus RC F | GT3" : isOreca ? "Oreca 07 LMP2" : "Sin Coche Asignado")
                   : selectedCar === "gt3"
-                  ? "Ferrari 296 GT3"
+                  ? "Lexus RC F | GT3"
                   : "Oreca 07 LMP2"}
               </span>
               {pilot.preferredGame && (
@@ -361,60 +361,126 @@ export default function PilotProfile({ pilot, attendance, onBack }: PilotProfile
         {/* LEFT COLUMN: License System & Event Attendance */}
         <div className="space-y-4">
           
-          {/* ALR License System Widget */}
+          {/* ALR License System Widget with Category Breakdown */}
           <div className="bg-[#111113]/90 border border-stone-800/80 rounded-2xl p-5 space-y-4" id="alr-license-widget">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-2">
               <h3 className="text-xs font-mono font-black uppercase tracking-widest text-stone-400 flex items-center gap-2">
                 <Gauge className="w-4 h-4 text-cyan-400" />
-                Sistema de Licencias ALR
+                Sistema de Licencias ALR por Categoría
               </h3>
               <span className={`text-[10px] font-mono font-bold border px-2 py-0.5 rounded ${licenseColor}`}>
-                {licenseClass}
+                Global: {licenseClass}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Skill Rating (Habilidad) */}
-              <div className="bg-stone-900/40 border border-stone-800/60 rounded-xl p-3.5 space-y-1 relative overflow-hidden">
+            {/* Overall Ratings */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Skill Rating */}
+              <div className="bg-stone-900/40 border border-stone-800/60 rounded-xl p-3 space-y-1 relative overflow-hidden">
                 <div className="absolute right-2 top-2">
                   <TrendingUp className="w-3.5 h-3.5 text-cyan-500/20" />
                 </div>
-                <p className="text-[9px] text-stone-500 font-mono uppercase tracking-wider">Skill Rating (SkR)</p>
-                <p className="text-2xl font-black font-mono text-cyan-400">{skillRating}</p>
-                <p className="text-[9px] text-stone-400 font-mono">Division: <span className="text-stone-200 font-bold">Elite</span></p>
-                
-                {/* Visual rank bar */}
-                <div className="h-1 bg-stone-950 rounded-full mt-2 overflow-hidden">
-                  <div 
-                    className="h-full bg-cyan-400 rounded-full" 
-                    style={{ width: `${Math.min(100, (skillRating / 10000) * 100)}%` }} 
-                  />
+                <p className="text-[9px] text-stone-500 font-mono uppercase tracking-wider">Skill Rating Global</p>
+                <p className="text-xl font-black font-mono text-cyan-400">{skillRating}</p>
+                <div className="h-1 bg-stone-950 rounded-full mt-1.5 overflow-hidden">
+                  <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${Math.min(100, (skillRating / 10000) * 100)}%` }} />
                 </div>
               </div>
 
-              {/* Safety Rating (Seguridad) */}
-              <div className="bg-stone-900/40 border border-stone-800/60 rounded-xl p-3.5 space-y-1 relative overflow-hidden">
+              {/* Safety Rating */}
+              <div className="bg-stone-900/40 border border-stone-800/60 rounded-xl p-3 space-y-1 relative overflow-hidden">
                 <div className="absolute right-2 top-2">
                   <Shield className="w-3.5 h-3.5 text-green-500/20" />
                 </div>
-                <p className="text-[9px] text-stone-500 font-mono uppercase tracking-wider">Safety Rating (SR)</p>
-                <p className="text-2xl font-black font-mono text-green-400">{safetyRating}</p>
-                <p className="text-[9px] text-stone-400 font-mono">Inc: <span className="text-stone-200 font-bold">{dnfs > 0 ? (dnfs * 1.3).toFixed(1) : "0.8"}</span> por carrera</p>
-
-                {/* Visual safety bar */}
-                <div className="h-1 bg-stone-950 rounded-full mt-2 overflow-hidden">
-                  <div 
-                    className="h-full bg-green-400 rounded-full" 
-                    style={{ width: `${(rawSR / 5.0) * 100}%` }} 
-                  />
+                <p className="text-[9px] text-stone-500 font-mono uppercase tracking-wider">Safety Rating Global</p>
+                <p className="text-xl font-black font-mono text-green-400">{safetyRating}</p>
+                <div className="h-1 bg-stone-950 rounded-full mt-1.5 overflow-hidden">
+                  <div className="h-full bg-green-400 rounded-full" style={{ width: `${(rawSR / 5.0) * 100}%` }} />
                 </div>
+              </div>
+            </div>
+
+            {/* Category License Cards */}
+            <div className="space-y-2 pt-1">
+              <p className="text-[10px] font-mono text-stone-400 uppercase tracking-widest font-bold">
+                Categorías de Competición
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {[
+                  {
+                    key: "GT" as const,
+                    name: "GT (GT3 / GT4)",
+                    color: "border-red-500/30 text-red-400 bg-red-950/20",
+                    badgeColor: "text-red-400 border-red-500/30 bg-red-950/40",
+                    defaultGrade: isFerrari ? "PRO" : "AM-Gold",
+                    defaultSR: 4.82,
+                    defaultSkR: isFerrari ? 3400 : 2600,
+                    defaultRaces: Math.round(races * 0.6) || 0,
+                  },
+                  {
+                    key: "Prototipos" as const,
+                    name: "Prototipos (LMP2 / Hypercar)",
+                    color: "border-fuchsia-500/30 text-fuchsia-400 bg-fuchsia-950/20",
+                    badgeColor: "text-fuchsia-400 border-fuchsia-500/30 bg-fuchsia-950/40",
+                    defaultGrade: isOreca ? "PRO-Elite" : "AM-Silver",
+                    defaultSR: 4.65,
+                    defaultSkR: isOreca ? 4800 : 2100,
+                    defaultRaces: Math.round(races * 0.4) || 0,
+                  },
+                  {
+                    key: "Fórmulas" as const,
+                    name: "Fórmulas (F1 / F3)",
+                    color: "border-cyan-500/30 text-cyan-400 bg-cyan-950/20",
+                    badgeColor: "text-cyan-400 border-cyan-500/30 bg-cyan-950/40",
+                    defaultGrade: "AM-Silver",
+                    defaultSR: 4.10,
+                    defaultSkR: 1950,
+                    defaultRaces: 0,
+                  },
+                  {
+                    key: "Endurance" as const,
+                    name: "Endurance (Resistencia)",
+                    color: "border-amber-500/30 text-amber-400 bg-amber-950/20",
+                    badgeColor: "text-amber-400 border-amber-500/30 bg-amber-950/40",
+                    defaultGrade: races > 5 ? "PRO" : "AM-Silver",
+                    defaultSR: 4.95,
+                    defaultSkR: 2900,
+                    defaultRaces: Math.round(races * 0.2) || 0,
+                  },
+                ].map((cat) => {
+                  const lic = pilot.categoryLicenses?.[cat.key];
+                  const grade = lic?.grade || (races > 0 ? cat.defaultGrade : "Sin Licencia");
+                  const catSR = lic?.safetyRating ?? (races > 0 ? cat.defaultSR : 0.0);
+                  const catSkR = lic?.skillRating ?? (races > 0 ? cat.defaultSkR : 0);
+                  const catRaces = lic?.racesCompleted ?? cat.defaultRaces;
+
+                  return (
+                    <div key={cat.key} className="bg-stone-900/40 border border-stone-800/80 rounded-xl p-3 flex flex-col justify-between space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-[11px] font-mono font-bold text-white">{cat.name}</p>
+                          <p className="text-[9px] text-stone-500 font-mono">{catRaces} carreras registradas</p>
+                        </div>
+                        <span className={`text-[9px] font-mono font-black uppercase tracking-wider border px-2 py-0.5 rounded ${cat.badgeColor}`}>
+                          {grade}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] font-mono pt-1 border-t border-stone-800/40">
+                        <span className="text-stone-400">SkR: <strong className="text-cyan-400 font-extrabold">{catSkR}</strong></span>
+                        <span className="text-stone-400">SR: <strong className="text-green-400 font-extrabold">{catSR.toFixed(2)}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             <div className="flex gap-1.5 p-2 bg-stone-950/40 border border-stone-900 rounded-lg items-start">
               <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
               <p className="text-[10px] text-stone-400 leading-normal font-sans">
-                La Licencia ALR combina el <span className="text-stone-300 font-bold">Skill Rating</span> (habilidad frente a rivales) con el <span className="text-stone-300 font-bold">Safety Rating</span> (limpieza y control en pista) basándose en las sesiones recolectadas.
+                Separar licencias por categoría permite evaluar el nivel técnico del piloto de forma justa: un piloto puede competir como <span className="text-amber-400 font-bold">PRO en GT3</span> y mantener un estatus <span className="text-stone-300 font-bold">AM o Rookie en Fórmulas o Prototipos</span>.
               </p>
             </div>
           </div>

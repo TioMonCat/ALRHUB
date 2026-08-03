@@ -9,7 +9,7 @@ export const mockPilots: UserProfile[] = [
     role: "piloto",
     status: "aprobado",
     preferredGame: "Assetto Corsa",
-    carPreference: "Ferrari 296 GT3",
+    carPreference: "Lexus RC F | GT3",
     raceNumber: "05",
     steamId: "123456789",
     experience: "Veterano",

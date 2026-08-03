@@ -64,6 +64,32 @@ export interface HandlingAnalysis {
   engineerNotes: string;
 }
 
+export type LicenseCategory = "GT" | "Prototipos" | "Fórmulas" | "Endurance";
+
+export interface CategoryLicenseInfo {
+  category: LicenseCategory;
+  grade: "PRO-Elite" | "PRO" | "AM-Gold" | "AM-Silver" | "Rookie" | "Sin Licencia";
+  safetyRating: number; // e.g. 4.85
+  skillRating: number;  // e.g. 2450
+  racesCompleted?: number;
+}
+
+export interface CategoryStats {
+  races?: number;
+  wins?: number;
+  podiums?: number;
+  poles?: number;
+  fastestLaps?: number;
+  dnfs?: number;
+  totalPoints?: number;
+  bestLap?: string;
+  avgPosition?: number;
+  consistency?: number;
+  safetyRating?: number;
+  skillRating?: number;
+  grade?: "PRO-Elite" | "PRO" | "AM-Gold" | "AM-Silver" | "Rookie" | "Sin Licencia";
+}
+
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -81,7 +107,9 @@ export interface UserProfile {
   instagram?: string;
   appliedAt?: string;
   country?: string;
-  // Stats populated by the external telemetry/stats app
+  // Category Licenses
+  categoryLicenses?: Partial<Record<LicenseCategory, CategoryLicenseInfo>>;
+  // Global & Category-specific stats populated by telemetry/stats app
   stats?: {
     races?: number;
     wins?: number;
@@ -93,6 +121,8 @@ export interface UserProfile {
     bestLap?: string;
     avgPosition?: number;
     consistency?: number;
+    // Category Breakdown
+    categories?: Partial<Record<LicenseCategory, CategoryStats>>;
   };
 }
 
