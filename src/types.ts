@@ -107,6 +107,9 @@ export interface UserProfile {
   instagram?: string;
   appliedAt?: string;
   country?: string;
+  skillRating?: number;
+  safetyRating?: number;
+  grade?: string;
   // Category Licenses
   categoryLicenses?: Partial<Record<LicenseCategory, CategoryLicenseInfo>>;
   // Global & Category-specific stats populated by telemetry/stats app
@@ -124,6 +127,29 @@ export interface UserProfile {
     // Category Breakdown
     categories?: Partial<Record<LicenseCategory, CategoryStats>>;
   };
+}
+
+export interface SimEvent {
+  id?: string;
+  pilotUid: string;
+  pilotName: string;
+  simulator: string;
+  sessionType: string;
+  isOnline: boolean;
+  carModel: string;
+  trackName: string;
+  qualyPosition?: number | null;
+  qualyBestLapTime?: number | null | string;
+  racePosition?: number | null;
+  raceBestLapTime?: number | null;
+  averagePosition?: number;
+  position?: number;
+  lapsCompleted?: number;
+  bestLapTimeSeconds?: number;
+  bestLapTimeFormatted?: string;
+  totalDistanceKm?: number;
+  incidentsCount?: number;
+  sessionTimestamp: string;
 }
 
 export interface NewsItem {

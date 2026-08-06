@@ -146,12 +146,41 @@
         "isClosed": { "type": "boolean" }
       },
       "required": ["id", "question", "type", "votes", "createdAt", "creatorId", "creatorName"]
+    },
+    "SimEvent": {
+      "title": "SimEvent",
+      "description": "Simulated race session data submitted by ALR Tracker desktop client.",
+      "type": "object",
+      "properties": {
+        "pilotUid": { "type": "string" },
+        "pilotName": { "type": "string" },
+        "simulator": { "type": "string" },
+        "sessionType": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "carModel": { "type": "string" },
+        "trackName": { "type": "string" },
+        "qualyPosition": { "type": "number" },
+        "racePosition": { "type": "number" },
+        "averagePosition": { "type": "number" },
+        "position": { "type": "number" },
+        "lapsCompleted": { "type": "number" },
+        "bestLapTimeSeconds": { "type": "number" },
+        "bestLapTimeFormatted": { "type": "string" },
+        "totalDistanceKm": { "type": "number" },
+        "incidentsCount": { "type": "number" },
+        "sessionTimestamp": { "type": "string" }
+      },
+      "required": ["pilotUid", "pilotName", "simulator", "carModel", "trackName", "sessionTimestamp"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "UserProfile",
       "description": "User profile with roles and telemetry status."
+    },
+    "users/{userId}/simEvents/{eventId}": {
+      "schema": "SimEvent",
+      "description": "Race sessions uploaded directly by ALR Tracker PC app."
     },
     "users/{userId}/setups/{setupId}": {
       "schema": "CarSetup",

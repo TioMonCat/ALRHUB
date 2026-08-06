@@ -40,12 +40,21 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
-      // 1. Delete all documents inside telemetry_sessions
+      // 1. Delete all documents inside telemetry_sessions & users/{uid}/simEvents
       const sessionsSnap = await getDocs(collection(db, "telemetry_sessions"));
       let deletedSessionsCount = 0;
       for (const d of sessionsSnap.docs) {
         await deleteDoc(doc(db, "telemetry_sessions", d.id));
         deletedSessionsCount++;
+      }
+
+      // Clear simEvents subcollection for each user
+      for (const u of users) {
+        const userSimEventsSnap = await getDocs(collection(db, "users", u.uid, "simEvents"));
+        for (const simDoc of userSimEventsSnap.docs) {
+          await deleteDoc(doc(db, "users", u.uid, "simEvents", simDoc.id));
+          deletedSessionsCount++;
+        }
       }
 
       // 2. Reset the profile-cached stats of all users

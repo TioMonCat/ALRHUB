@@ -250,45 +250,6 @@ export default function App() {
   }, []);
 
   // 1.1 RECALCULATE STATS AUTOMATICALLY FOR CURRENT USER & SELECTED PILOT PROFILE
-  useEffect(() => {
-    const runAutoCleanup = async () => {
-      if (!firebaseUser) return;
-      const email = firebaseUser.email?.toLowerCase();
-      if (email !== "jaminecraft844@gmail.com" && email !== "bverdugo844@gmail.com") return;
-      
-      const isCleaned = localStorage.getItem("alr_test_telemetry_cleaned_v2");
-      if (isCleaned === "true") return;
-
-      try {
-        const sessionsSnap = await getDocs(collection(db, "telemetry_sessions"));
-        let countDeleted = 0;
-        for (const d of sessionsSnap.docs) {
-          const s = d.data();
-          if (s.pilotUid === firebaseUser.uid) {
-            await deleteDoc(doc(db, "telemetry_sessions", d.id));
-            countDeleted++;
-          }
-        }
-        localStorage.setItem("alr_test_telemetry_cleaned_v2", "true");
-        await updateDoc(doc(db, "users", firebaseUser.uid), {
-          stats: {
-            races: 0,
-            wins: 0,
-            podiums: 0,
-            poles: 0,
-            fastestLaps: 0,
-            bestLap: "—:——.———",
-            avgPosition: 0,
-            consistency: 0
-          }
-        });
-        console.log(`Auto-cleanup complete! Deleted ${countDeleted} sessions for ${email}.`);
-      } catch (e) {
-        console.warn("Could not auto-cleanup test sessions:", e);
-      }
-    };
-    runAutoCleanup();
-  }, [firebaseUser]);
 
   useEffect(() => {
     if (!firebaseUser) return;
@@ -325,7 +286,11 @@ export default function App() {
     const unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       const usersList: UserProfile[] = [];
       snapshot.forEach((doc) => {
-        usersList.push(doc.data() as UserProfile);
+        const u = doc.data() as UserProfile;
+        usersList.push(u);
+        if (u.uid) {
+          recalculateAndUpdatePilotStats(u.uid).catch(() => {});
+        }
       });
       setAllUsers(usersList);
       setIsLoadingPortal(false);

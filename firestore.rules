@@ -24,7 +24,10 @@ service cloud.firestore {
 
     function isAppAdmin() {
       return isAuth() && (
-        (request.auth.token.get('email', '').matches('(?i)jaminecraft844@gmail\\.com')) ||
+        ('email' in request.auth.token && (
+          request.auth.token.email.matches('(?i)jaminecraft844@gmail\\.com') ||
+          request.auth.token.email.matches('(?i)bverdugo844@gmail\\.com')
+        )) ||
         (getRole() == 'admin')
       );
     }
@@ -41,6 +44,11 @@ service cloud.firestore {
       allow read: if isAuth() || userId == "default_user";
       allow create, update: if isOwner(userId) || isAppAdmin();
       allow delete: if isAppAdmin();
+      
+      match /simEvents/{docId} {
+        allow read: if isAuth();
+        allow create, update, delete: if isOwner(userId) || isAppAdmin();
+      }
       
       match /setups/{docId} {
         allow read: if isAuth() || userId == "default_user";
