@@ -640,6 +640,23 @@ export default function SetupDetail({
     }
   }, [setup.game, metaSetupType]);
 
+  const getFieldValue = (field: SetupField): string => {
+    const raw = values[field.id] !== undefined ? values[field.id] : (field.defaultValue || "");
+    if (field.type === FieldType.NUMBER && field.min !== undefined && field.max !== undefined) {
+      const num = parseFloat(raw);
+      if (!isNaN(num)) {
+        if (num < field.min || num > field.max) {
+          const defNum = parseFloat(field.defaultValue || "");
+          if (!isNaN(defNum) && defNum >= field.min && defNum <= field.max) {
+            return field.defaultValue!;
+          }
+          return Math.min(field.max, Math.max(field.min, num)).toString();
+        }
+      }
+    }
+    return raw;
+  };
+
   const handleValueChange = (fieldId: string, val: string) => {
     const nextValues = { ...values, [fieldId]: val };
     setValues(nextValues);
@@ -647,7 +664,7 @@ export default function SetupDetail({
   };
 
   const handleIncrement = (field: SetupField, direction: number) => {
-    const currentStr = values[field.id] !== undefined ? values[field.id] : (field.defaultValue || "0");
+    const currentStr = getFieldValue(field);
     const currentNum = parseFloat(currentStr) || 0;
     const step = field.step || 1;
     const min = field.min !== undefined ? field.min : -99999;
@@ -830,7 +847,7 @@ export default function SetupDetail({
   };
 
   const renderCompactCtrl = (field: SetupField) => {
-    const currentVal = values[field.id] !== undefined ? values[field.id] : (field.defaultValue || "");
+    const currentVal = getFieldValue(field);
     const min = field.min !== undefined ? field.min : 0;
     const max = field.max !== undefined ? field.max : 100;
     const ratio = field.type === FieldType.NUMBER
@@ -897,7 +914,7 @@ export default function SetupDetail({
   };
 
   const renderAxleBarCtrl = (field: SetupField) => {
-    const currentVal = values[field.id] !== undefined ? values[field.id] : (field.defaultValue || "");
+    const currentVal = getFieldValue(field);
     const min = field.min ?? 0;
     const max = field.max ?? 10;
     const ratio = Math.min(100, Math.max(0, ((parseFloat(currentVal) || 0) - min) / (max - min) * 100));
@@ -1544,7 +1561,7 @@ export default function SetupDetail({
                             {generalFields.filter(f => f.id !== "arb_front" && f.id !== "arb_rear").length > 0 ? (
                               <div className="space-y-4">
                                 {generalFields.filter(f => f.id !== "arb_front" && f.id !== "arb_rear").map(field => {
-                                  const currentVal = values[field.id] !== undefined ? values[field.id] : (field.defaultValue || "");
+                                  const currentVal = getFieldValue(field);
                                   const min = field.min ?? 0;
                                   const max = field.max ?? 100;
                                   const ratio = Math.min(100, Math.max(0, ((parseFloat(currentVal) || 0) - min) / (max - min) * 100));
@@ -1672,7 +1689,7 @@ export default function SetupDetail({
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {activeSection.fields.map(field => {
-                          const currentVal = values[field.id] !== undefined ? values[field.id] : (field.defaultValue || "");
+                          const currentVal = getFieldValue(field);
                           const min = field.min !== undefined ? field.min : 0;
                           const max = field.max !== undefined ? field.max : 100;
                           const ratio = field.type === FieldType.NUMBER
