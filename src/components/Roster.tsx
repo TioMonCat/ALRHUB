@@ -138,10 +138,6 @@ export default function Roster({
       currentUserProfile?.role === "admin" ||
       currentUserProfile?.uid === pilot.uid;
 
-    const dorsalColorClass = vehicle
-      ? vehicle.textColor
-      : "text-amber-400";
-
     return (
       <div
         key={pilot.uid}
@@ -149,7 +145,7 @@ export default function Roster({
         onClick={() => onViewPilot(pilot.uid)}
       >
         <div className="space-y-2.5">
-          {/* Header: Avatar, Name, Role, and Dorsal */}
+          {/* Header: Avatar, Name, and Role */}
           <div className="flex items-center gap-2.5">
             {pilot.photoURL ? (
               <img
@@ -179,20 +175,6 @@ export default function Roster({
               </div>
               <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-stone-500">
                 {isAdmin ? "Comisario" : pilot.experience || "Piloto Oficial"}
-              </span>
-            </div>
-
-            {/* Dorsal Badge */}
-            <div className="font-mono text-center flex flex-col justify-center items-center bg-[#1c1c1f] border border-stone-800 rounded-lg w-9 h-9 shadow-inner flex-shrink-0">
-              <span className="text-[6.5px] text-stone-500 font-bold uppercase leading-none">
-                DORSAL
-              </span>
-              <span
-                className={`text-xs font-black tracking-tight leading-none ${dorsalColorClass}`}
-              >
-                {pilot.raceNumber && pilot.raceNumber !== "--"
-                  ? pilot.raceNumber
-                  : "00"}
               </span>
             </div>
           </div>
@@ -631,7 +613,18 @@ export default function Roster({
                 <select
                   required
                   value={editCarPref}
-                  onChange={(e) => setEditCarPref(e.target.value)}
+                  onChange={(e) => {
+                    const newVehId = e.target.value;
+                    setEditCarPref(newVehId);
+                    const foundVeh = OFFICIAL_VEHICLES.find((v) => v.id === newVehId);
+                    if (foundVeh && foundVeh.defaultDorsals && foundVeh.defaultDorsals.length > 0) {
+                      if (!foundVeh.defaultDorsals.includes(editRaceNumber)) {
+                        setEditRaceNumber(foundVeh.defaultDorsals[0]);
+                      }
+                    } else {
+                      setEditRaceNumber("--");
+                    }
+                  }}
                   className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
                 >
                   <option value="">-- Sin Vehículo (Banca de Reserva) --</option>
@@ -647,22 +640,71 @@ export default function Roster({
                 </p>
               </div>
 
-              {/* Dorsal Number */}
-              <div>
-                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
-                  Número de Dorsal / Coche
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: 05, 08, 15, 21, 32, 43, 91, 92..."
-                  value={editRaceNumber}
-                  onChange={(e) => setEditRaceNumber(e.target.value)}
-                  className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
-                />
-                <p className="text-[10px] text-stone-500 font-mono mt-1">
-                  Dorsal oficial visible en la ficha de piloto y en el recuadro de asiento.
-                </p>
-              </div>
+              {/* Dorsal Selection */}
+              {(() => {
+                const selectedVeh = OFFICIAL_VEHICLES.find((v) => v.id === editCarPref);
+                const defaultDorsals = selectedVeh?.defaultDorsals || [];
+
+                if (selectedVeh && defaultDorsals.length > 0) {
+                  return (
+                    <div>
+                      <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
+                        Seleccionar Dorsal de {selectedVeh.brand}
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        {defaultDorsals.map((dorsal) => {
+                          const isSelected = editRaceNumber === dorsal;
+                          return (
+                            <button
+                              key={dorsal}
+                              type="button"
+                              onClick={() => setEditRaceNumber(dorsal)}
+                              className={`p-3 rounded-xl border text-xs font-mono font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                isSelected
+                                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                  : "bg-[#18181b] border-stone-800 text-stone-400 hover:border-stone-700 hover:text-white"
+                              }`}
+                            >
+                              <span>Dorsal</span>
+                              <span className="text-sm font-black text-white">#{dorsal}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="O escribir dorsal personalizado..."
+                          value={editRaceNumber}
+                          onChange={(e) => setEditRaceNumber(e.target.value)}
+                          className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-400 placeholder:text-stone-600"
+                        />
+                      </div>
+                      <p className="text-[10px] text-stone-500 font-mono mt-1">
+                        Asigna directamente al asiento de este dorsal en el equipo.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div>
+                    <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
+                      Número de Dorsal / Coche
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: 5, 8, 23, 91, 32, 43..."
+                      value={editRaceNumber}
+                      onChange={(e) => setEditRaceNumber(e.target.value)}
+                      className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
+                    />
+                    <p className="text-[10px] text-stone-500 font-mono mt-1">
+                      Dorsal oficial visible en el recuadro de asiento.
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Buttons */}
               <div className="pt-2 flex items-center justify-end gap-3">
