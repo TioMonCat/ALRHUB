@@ -276,8 +276,28 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
                                 onChange={(e) => setRaceNumber(e.target.value)}
                               >
                                 <option value="--">--</option>
+                                <option value="5">5</option>
+                                <option value="8">8</option>
                                 <option value="05">05</option>
                                 <option value="08">08</option>
+                              </select>
+                            ) : carPreference === "BMW M4 2021 | GT3" ? (
+                              <select
+                                className="bg-[#18181b] border border-stone-800 rounded p-1 text-xs text-white font-mono w-16 text-center focus:outline-none"
+                                value={raceNumber}
+                                onChange={(e) => setRaceNumber(e.target.value)}
+                              >
+                                <option value="--">--</option>
+                                <option value="23">23</option>
+                              </select>
+                            ) : carPreference === "Porsche 992 R 2023 | GT3" ? (
+                              <select
+                                className="bg-[#18181b] border border-stone-800 rounded p-1 text-xs text-white font-mono w-16 text-center focus:outline-none"
+                                value={raceNumber}
+                                onChange={(e) => setRaceNumber(e.target.value)}
+                              >
+                                <option value="--">--</option>
+                                <option value="91">91</option>
                               </select>
                             ) : carPreference === "Oreca 07 | LMP2" ? (
                               <select
@@ -398,7 +418,15 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
                                 const val = e.target.value;
                                 setCarPreference(val);
                                 if (val === "Lexus RC F | GT3" || val === "Ferrari 296 | GT3") {
-                                  if (raceNumber !== "05" && raceNumber !== "08" && raceNumber !== "--") {
+                                  if (raceNumber !== "5" && raceNumber !== "8" && raceNumber !== "05" && raceNumber !== "08" && raceNumber !== "--") {
+                                    setRaceNumber("--");
+                                  }
+                                } else if (val === "BMW M4 2021 | GT3") {
+                                  if (raceNumber !== "23" && raceNumber !== "--") {
+                                    setRaceNumber("--");
+                                  }
+                                } else if (val === "Porsche 992 R 2023 | GT3") {
+                                  if (raceNumber !== "91" && raceNumber !== "--") {
                                     setRaceNumber("--");
                                   }
                                 } else if (val === "Oreca 07 | LMP2") {
@@ -410,6 +438,8 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
                             >
                               <option value="">--</option>
                               <option value="Lexus RC F | GT3">Lexus RC F | GT3</option>
+                              <option value="BMW M4 2021 | GT3">BMW M4 2021 | GT3</option>
+                              <option value="Porsche 992 R 2023 | GT3">Porsche 992 R 2023 | GT3</option>
                               <option value="Oreca 07 | LMP2">Oreca 07 | LMP2</option>
                             </select>
                           ) : (

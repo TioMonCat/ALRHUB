@@ -1726,6 +1726,7 @@ export default function App() {
                 <Roster
                   users={allUsers}
                   isLoading={false}
+                  currentUserProfile={resolvedProfile}
                   onViewPilot={(uid) => { setSelectedPilotId(uid); setActiveTab("pilot_profile"); }}
                 />
               )}

@@ -157,11 +157,11 @@ export default function Inicio({
     const path = `users/${currentUserProfile.uid}`;
     let autoRaceNumber = currentUserProfile.raceNumber || "";
     if (!autoRaceNumber || currentUserProfile.carPreference !== carPref) {
-      if (carPref === "Lexus RC F | GT3" || carPref === "Ferrari 296 | GT3") {
-        if (autoRaceNumber !== "05" && autoRaceNumber !== "08" && autoRaceNumber !== "--") {
+      if (carPref === "GT3" || carPref.includes("GT3") || carPref.includes("Lexus") || carPref.includes("BMW") || carPref.includes("Porsche")) {
+        if (autoRaceNumber !== "5" && autoRaceNumber !== "8" && autoRaceNumber !== "05" && autoRaceNumber !== "08" && autoRaceNumber !== "23" && autoRaceNumber !== "91" && autoRaceNumber !== "--") {
           autoRaceNumber = "--";
         }
-      } else if (carPref === "Oreca 07 | LMP2") {
+      } else if (carPref === "LMP2" || carPref.includes("LMP2") || carPref.includes("Oreca")) {
         if (autoRaceNumber !== "32" && autoRaceNumber !== "43" && autoRaceNumber !== "--") {
           autoRaceNumber = "--";
         }
@@ -207,7 +207,7 @@ export default function Inicio({
                 fields: [
                   { name: "👤 Piloto", value: currentUserProfile.displayName || "No especificado", inline: true },
                   { name: "📧 Correo", value: currentUserProfile.email || "No especificado", inline: true },
-                  { name: "🏎️ Vehículo de Competición", value: carPref || "No especificado", inline: true },
+                  { name: "🏎️ Categoría de Competición", value: carPref || "No especificado", inline: true },
                   { name: "🎮 Simulador Preferido", value: prefGame || "No especificado", inline: true },
                   { name: "📸 Instagram", value: instagram || "No especificado", inline: true },
                   { name: "🏳️ País / Nacionalidad", value: countryText, inline: true },
@@ -500,18 +500,24 @@ export default function Inicio({
                 </div>
                 <div>
                 <label className="block text-[10px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">
-                  Vehículo de Competición *
+                  Categoría de Competición *
                 </label>
                 <select
                   required
                   disabled={dbReadOnly}
                   className="w-full bg-[#18181B] border border-stone-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                  value={carPref || ""}
+                  value={
+                    carPref === "GT3" || carPref.includes("GT3") || carPref.includes("Lexus") || carPref.includes("BMW") || carPref.includes("Porsche")
+                      ? "GT3"
+                      : carPref === "LMP2" || carPref.includes("LMP2") || carPref.includes("Oreca")
+                      ? "LMP2"
+                      : carPref
+                  }
                   onChange={(e) => setCarPref(e.target.value)}
                 >
-                  <option value="">-- Selecciona --</option>
-                  <option value="Lexus RC F | GT3">Lexus RC F | GT3</option>
-                  <option value="Oreca 07 | LMP2">Oreca 07 | LMP2</option>
+                  <option value="">-- Selecciona Categoría --</option>
+                  <option value="GT3">Categoría GT3</option>
+                  <option value="LMP2">Categoría LMP2</option>
                 </select>
               </div>
 

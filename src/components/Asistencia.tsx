@@ -389,6 +389,7 @@ export default function Asistencia({
                     uid: p.uid,
                     userName: p.displayName,
                     userPhoto: p.photoURL || "",
+                    carPreference: p.carPreference || "",
                     raceNumber: p.raceNumber || "",
                     status: (rsvp?.status || "pending") as "yes" | "maybe" | "no" | "pending",
                     comments: rsvp?.comments || "",
@@ -403,28 +404,50 @@ export default function Asistencia({
                 const pendingCount = rosterAttendance.filter((r) => r.status === "pending").length;
 
                 // Group by Vehicle and Dorsals
-                const ferrariList = rosterAttendance.filter(
-                  (r) => r.raceNumber === "05" || r.raceNumber === "08"
+                const lexusList = rosterAttendance.filter(
+                  (r) => r.carPreference?.includes("Lexus") || r.raceNumber === "5" || r.raceNumber === "8" || r.raceNumber === "05" || r.raceNumber === "08"
+                );
+                const bmwList = rosterAttendance.filter(
+                  (r) => r.carPreference?.includes("BMW") || r.raceNumber === "23"
+                );
+                const porscheList = rosterAttendance.filter(
+                  (r) => r.carPreference?.includes("Porsche") || r.carPreference?.includes("Porshe") || r.carPreference?.includes("992") || r.raceNumber === "91"
                 );
                 const orecaList = rosterAttendance.filter(
-                  (r) => r.raceNumber === "32" || r.raceNumber === "43"
+                  (r) => r.carPreference?.includes("Oreca") || r.carPreference?.includes("LMP2") || r.raceNumber === "32" || r.raceNumber === "43"
                 );
                 const reserveList = rosterAttendance.filter(
                   (r) =>
-                    r.raceNumber !== "05" &&
-                    r.raceNumber !== "08" &&
-                    r.raceNumber !== "32" &&
-                    r.raceNumber !== "43"
+                    !lexusList.includes(r) &&
+                    !bmwList.includes(r) &&
+                    !porscheList.includes(r) &&
+                    !orecaList.includes(r)
                 );
 
                 const vehicleGroups = [
                   {
                     id: "lexus",
                     title: "Lexus RC F | GT3",
-                    dorsals: ["05", "08"],
+                    dorsals: ["5", "8"],
                     badgeColor: "border-red-800/40 text-red-400 bg-red-950/40",
                     headerBg: "border-red-900/40 bg-red-950/20 text-red-400",
-                    pilots: ferrariList,
+                    pilots: lexusList,
+                  },
+                  {
+                    id: "bmw",
+                    title: "BMW M4 GT3 2021",
+                    dorsals: ["23"],
+                    badgeColor: "border-blue-800/40 text-blue-400 bg-blue-950/40",
+                    headerBg: "border-blue-900/40 bg-blue-950/20 text-blue-400",
+                    pilots: bmwList,
+                  },
+                  {
+                    id: "porsche",
+                    title: "Porsche 992 R 2023 GT3",
+                    dorsals: ["91"],
+                    badgeColor: "border-emerald-800/40 text-emerald-400 bg-emerald-950/40",
+                    headerBg: "border-emerald-900/40 bg-emerald-950/20 text-emerald-400",
+                    pilots: porscheList,
                   },
                   {
                     id: "oreca",
@@ -514,7 +537,11 @@ export default function Asistencia({
                         }
 
                         group.pilots.forEach((p) => {
-                          const key = p.raceNumber || "Sin Dorsal";
+                          let key = p.raceNumber || "Sin Dorsal";
+                          if (key !== "Sin Dorsal" && key !== "--") {
+                            const parsed = parseInt(key, 10);
+                            if (!isNaN(parsed)) key = String(parsed);
+                          }
                           if (!dorsalMap[key]) {
                             dorsalMap[key] = [];
                           }

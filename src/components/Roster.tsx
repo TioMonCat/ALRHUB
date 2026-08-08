@@ -1,100 +1,178 @@
 import React, { useState } from "react";
 import { UserProfile } from "../types";
-import { COUNTRIES } from "../presets";
-import { Shield, Award, RefreshCw, Instagram, Car, Users, HelpCircle } from "lucide-react";
+import { COUNTRIES, OFFICIAL_VEHICLES, OfficialVehicle } from "../presets";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../firebase";
+import {
+  Shield,
+  Award,
+  RefreshCw,
+  Instagram,
+  Car,
+  Users,
+  Settings,
+  X,
+  Check,
+  Edit3,
+  Layers,
+  Hash,
+} from "lucide-react";
 
 interface RosterProps {
   users: UserProfile[];
   isLoading: boolean;
   onViewPilot: (uid: string) => void;
+  currentUserProfile?: UserProfile | null;
 }
 
-export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
+export default function Roster({
+  users,
+  isLoading,
+  onViewPilot,
+  currentUserProfile,
+}: RosterProps) {
   const [filterSimulator, setFilterSimulator] = useState<string>("Todos");
+
+  // State for vehicle / dorsal assignment edit modal
+  const [editingPilot, setEditingPilot] = useState<UserProfile | null>(null);
+  const [editCarPref, setEditCarPref] = useState<string>("");
+  const [editRaceNumber, setEditRaceNumber] = useState<string>("");
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Filter roster: anyone whose role is "piloto" or "admin" and whose status is "aprobado"
   const pilots = users.filter(
     (u) => (u.role === "piloto" || u.role === "admin") && u.status === "aprobado"
   );
 
-  // Group pilots into active car configurations and reserves:
-  // - Lexus RC F | GT3 -> Dorsals 05, 08
-  // - Oreca 07 | LMP2 -> Dorsals 32, 43
-  // - Banca / Reserva -> everything else (empty, "--", other dorsals)
-  const ferrariPilots = pilots.filter(
-    (u) => u.raceNumber === "05" || u.raceNumber === "08"
-  ).sort((a, b) => {
-    if (a.role === "admin" && b.role !== "admin") return -1;
-    if (a.role !== "admin" && b.role === "admin") return 1;
-    return (a.raceNumber || "").localeCompare(b.raceNumber || "");
-  });
+  // Helper to resolve which vehicle a pilot belongs to
+  const getPilotVehicle = (pilot: UserProfile): string => {
+    const pref = pilot.carPreference || "";
+    if (pref.includes("BMW")) return "BMW M4 2021 | GT3";
+    if (
+      pref.includes("Porsche") ||
+      pref.includes("Porshe") ||
+      pref.includes("992")
+    )
+      return "Porsche 992 R 2023 | GT3";
+    if (pref.includes("Lexus")) return "Lexus RC F | GT3";
+    if (pref.includes("Oreca") || pref.includes("LMP2"))
+      return "Oreca 07 | LMP2";
 
-  const orecaPilots = pilots.filter(
-    (u) => u.raceNumber === "32" || u.raceNumber === "43"
-  ).sort((a, b) => {
-    if (a.role === "admin" && b.role !== "admin") return -1;
-    if (a.role !== "admin" && b.role === "admin") return 1;
-    return (a.raceNumber || "").localeCompare(b.raceNumber || "");
-  });
+    // Legacy fallback based on initial dorsals
+    if (
+      pilot.raceNumber === "5" ||
+      pilot.raceNumber === "8" ||
+      pilot.raceNumber === "05" ||
+      pilot.raceNumber === "08"
+    )
+      return "Lexus RC F | GT3";
+    if (pilot.raceNumber === "23") return "BMW M4 2021 | GT3";
+    if (pilot.raceNumber === "91") return "Porsche 992 R 2023 | GT3";
+    if (pilot.raceNumber === "32" || pilot.raceNumber === "43")
+      return "Oreca 07 | LMP2";
 
-  const reservePilots = pilots.filter(
-    (u) => u.raceNumber !== "05" && u.raceNumber !== "08" && u.raceNumber !== "32" && u.raceNumber !== "43"
-  ).sort((a, b) => {
-    if (a.role === "admin" && b.role !== "admin") return -1;
-    if (a.role !== "admin" && b.role === "admin") return 1;
-    return a.displayName.localeCompare(b.displayName);
-  });
+    return "Reserva";
+  };
 
   // Extract unique simulators/platforms for filtering
   const simulators = ["Todos", "Assetto Corsa", "Le Mans Ultimate"];
 
-  // Apply simulator filters
+  // Filter list by simulator
   const filterByGame = (list: UserProfile[]) => {
     return list.filter((p) => {
       if (filterSimulator === "Todos") return true;
-      return p.preferredGame === filterSimulator || p.preferredGame === "Ambos";
+      return (
+        p.preferredGame === filterSimulator || p.preferredGame === "Ambos"
+      );
     });
   };
 
-  const filteredFerrari = filterByGame(ferrariPilots);
-  const filteredOreca = filterByGame(orecaPilots);
-  const filteredReserves = filterByGame(reservePilots);
+  const filteredPilots = filterByGame(pilots);
 
-  const totalFilteredCount = filteredFerrari.length + filteredOreca.length + filteredReserves.length;
+  // Open edit modal for a pilot
+  const openEditModal = (pilot: UserProfile, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPilot(pilot);
+    setEditCarPref(pilot.carPreference || getPilotVehicle(pilot));
+    setEditRaceNumber(pilot.raceNumber || "");
+    setSaveError(null);
+  };
 
-  const renderPilotCard = (pilot: UserProfile) => {
-    const isFerrari = pilot.raceNumber === "05" || pilot.raceNumber === "08";
-    const pilotCountry = COUNTRIES.find((c) => c.code === pilot.country?.toLowerCase());
+  // Save updated vehicle and dorsal assignment to Firestore
+  const handleSaveAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPilot) return;
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const userRef = doc(db, "users", editingPilot.uid);
+      await updateDoc(userRef, {
+        carPreference: editCarPref,
+        raceNumber: editRaceNumber,
+      });
+
+      // Update in-memory reference
+      editingPilot.carPreference = editCarPref;
+      editingPilot.raceNumber = editRaceNumber;
+
+      setEditingPilot(null);
+    } catch (err: any) {
+      console.error("Error updating assignment:", err);
+      setSaveError(
+        err?.message || "Error al actualizar asignación del vehículo"
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Render an individual pilot card
+  const renderPilotCard = (pilot: UserProfile, vehicle?: OfficialVehicle) => {
+    const pilotCountry = COUNTRIES.find(
+      (c) => c.code === pilot.country?.toLowerCase()
+    );
     const isAdmin = pilot.role === "admin";
+    const canEdit =
+      currentUserProfile?.role === "admin" ||
+      currentUserProfile?.uid === pilot.uid;
+
+    const dorsalColorClass = vehicle
+      ? vehicle.textColor
+      : "text-amber-400";
 
     return (
       <div
         key={pilot.uid}
-        className="bg-[#141416]/90 border border-stone-800/80 hover:border-cyan-500/40 rounded-xl p-4 relative group transition-all duration-300 flex flex-col justify-between h-full cursor-pointer"
+        className="bg-[#141417] border border-stone-800/80 hover:border-cyan-500/40 rounded-xl p-3.5 relative group transition-all duration-300 flex flex-col justify-between h-full cursor-pointer shadow-md hover:shadow-cyan-950/20"
         onClick={() => onViewPilot(pilot.uid)}
       >
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {/* Header: Avatar, Name, Role, and Dorsal */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {pilot.photoURL ? (
               <img
                 src={pilot.photoURL}
                 alt={pilot.displayName}
                 referrerPolicy="no-referrer"
-                className="w-10 h-10 rounded-full border border-stone-800 object-cover bg-stone-900 group-hover:border-cyan-400/50 transition-all duration-300"
+                className="w-9 h-9 rounded-full border border-stone-800 object-cover bg-stone-900 group-hover:border-cyan-400/50 transition-all duration-300"
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-stone-900 text-[#66FCF1] border border-stone-800 flex items-center justify-center text-xs font-mono font-black">
+              <div className="w-9 h-9 rounded-full bg-stone-900 text-[#66FCF1] border border-stone-800 flex items-center justify-center text-xs font-mono font-black">
                 {pilot.displayName.slice(0, 2).toUpperCase()}
               </div>
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
-                <p className="font-extrabold text-white tracking-tight text-xs truncate" title={pilot.displayName}>
+                <p
+                  className="font-extrabold text-white tracking-tight text-xs truncate"
+                  title={pilot.displayName}
+                >
                   {pilot.displayName}
                 </p>
                 {isAdmin && (
-                  <span title="Administrador">
+                  <span title="Administrador / Comisario">
                     <Shield className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                   </span>
                 )}
@@ -104,22 +182,28 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
               </span>
             </div>
 
-            {/* Big Gorgeous Dorsal Number */}
-            <div className="font-mono text-center flex flex-col justify-center items-center bg-[#1c1c1f] border border-stone-800 rounded-lg w-10 h-10 shadow-inner flex-shrink-0">
-              <span className="text-[7px] text-stone-500 font-bold uppercase leading-none">Nº</span>
-              <span className={`text-sm font-black tracking-tight leading-none ${
-                isFerrari ? "text-red-400" : "text-fuchsia-400"
-              }`}>
-                {pilot.raceNumber || "00"}
+            {/* Dorsal Badge */}
+            <div className="font-mono text-center flex flex-col justify-center items-center bg-[#1c1c1f] border border-stone-800 rounded-lg w-9 h-9 shadow-inner flex-shrink-0">
+              <span className="text-[6.5px] text-stone-500 font-bold uppercase leading-none">
+                DORSAL
+              </span>
+              <span
+                className={`text-xs font-black tracking-tight leading-none ${dorsalColorClass}`}
+              >
+                {pilot.raceNumber && pilot.raceNumber !== "--"
+                  ? pilot.raceNumber
+                  : "00"}
               </span>
             </div>
           </div>
 
-          {/* Driver Stats/Details row */}
-          <div className="pt-3 border-t border-stone-800/60 grid grid-cols-2 gap-2 text-[10.5px] font-mono">
+          {/* Details row: Nationality & Simulator */}
+          <div className="pt-2 border-t border-stone-800/60 grid grid-cols-2 gap-2 text-[10px] font-mono">
             {/* Nacionalidad */}
-            <div className="bg-[#17171a]/50 p-1.5 rounded border border-stone-800/20 flex flex-col justify-between">
-              <span className="text-stone-500 text-[8px] uppercase tracking-wider">Nación</span>
+            <div className="bg-[#111113]/60 p-1.5 rounded border border-stone-800/30 flex flex-col justify-between">
+              <span className="text-stone-500 text-[8px] uppercase tracking-wider">
+                Nación
+              </span>
               {pilotCountry ? (
                 <span className="text-stone-300 font-bold flex items-center gap-1 mt-0.5 truncate">
                   <img
@@ -135,27 +219,43 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
             </div>
 
             {/* Simulador */}
-            <div className="bg-[#17171a]/50 p-1.5 rounded border border-stone-800/20 flex flex-col justify-between">
-              <span className="text-stone-500 text-[8px] uppercase tracking-wider">Simulador</span>
-              <span className="text-cyan-400 font-bold mt-0.5 truncate" title={pilot.preferredGame}>
+            <div className="bg-[#111113]/60 p-1.5 rounded border border-stone-800/30 flex flex-col justify-between">
+              <span className="text-stone-500 text-[8px] uppercase tracking-wider">
+                Simulador
+              </span>
+              <span
+                className="text-cyan-400 font-bold mt-0.5 truncate"
+                title={pilot.preferredGame}
+              >
                 {pilot.preferredGame || "N/A"}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Technical / Social fields */}
-        <div className="mt-3 pt-2.5 border-t border-stone-800/30 space-y-1 text-[9.5px] font-mono text-stone-400">
+        {/* Footer: Socials & Modify vehicle / dorsal button */}
+        <div className="mt-2.5 pt-2 border-t border-stone-800/30 space-y-1.5 text-[9px] font-mono text-stone-400">
           <div className="flex justify-between items-center px-0.5">
-            <span className="text-stone-600 text-[8.5px] uppercase">Steam ID</span>
-            <span className="text-stone-300 font-semibold truncate max-w-[110px]" title={pilot.steamId || ""}>
+            <span className="text-stone-600 text-[8px] uppercase">
+              Steam ID
+            </span>
+            <span
+              className="text-stone-300 font-semibold truncate max-w-[100px]"
+              title={pilot.steamId || ""}
+            >
               {pilot.steamId || "--"}
             </span>
           </div>
+
           <div className="flex justify-between items-center px-0.5">
-            <span className="text-stone-600 text-[8.5px] uppercase">Instagram</span>
+            <span className="text-stone-600 text-[8px] uppercase">
+              Instagram
+            </span>
             {pilot.instagram ? (
-              <span className="text-pink-400 font-medium flex items-center gap-0.5 truncate max-w-[110px]" title={pilot.instagram}>
+              <span
+                className="text-pink-400 font-medium flex items-center gap-0.5 truncate max-w-[100px]"
+                title={pilot.instagram}
+              >
                 <Instagram className="w-2.5 h-2.5 flex-shrink-0" />
                 {pilot.instagram}
               </span>
@@ -163,105 +263,48 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
               <span className="text-stone-500">--</span>
             )}
           </div>
+
+          {/* Quick Edit Dorsal / Vehicle button */}
+          {canEdit && (
+            <div className="pt-1.5">
+              <button
+                type="button"
+                onClick={(e) => openEditModal(pilot, e)}
+                className="w-full flex items-center justify-center gap-1 py-1 px-2 bg-stone-900/80 hover:bg-cyan-950/40 border border-stone-800 hover:border-cyan-500/40 rounded-lg text-[9.5px] text-stone-300 hover:text-cyan-400 transition-all font-mono font-bold cursor-pointer group/btn"
+              >
+                <Edit3 className="w-2.5 h-2.5 text-cyan-400 group-hover/btn:scale-110 transition-transform" />
+                <span>Editar Asignación</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
-  const renderReserveCard = (pilot: UserProfile) => {
-    const pilotCountry = COUNTRIES.find((c) => c.code === pilot.country?.toLowerCase());
-    const isAdmin = pilot.role === "admin";
-
-    return (
-      <div
-        key={pilot.uid}
-        className="bg-[#111113]/70 border border-stone-800/60 hover:border-amber-500/30 rounded-xl p-4 relative group transition-all duration-300 flex flex-col justify-between h-full cursor-pointer"
-        onClick={() => onViewPilot(pilot.uid)}
-      >
-        <div className="space-y-3">
-          {/* Header: Avatar, Name, Role, No Dorsal */}
-          <div className="flex items-center gap-3">
-            {pilot.photoURL ? (
-              <img
-                src={pilot.photoURL}
-                alt={pilot.displayName}
-                referrerPolicy="no-referrer"
-                className="w-10 h-10 rounded-full border border-stone-800 object-cover bg-stone-900 filter grayscale group-hover:grayscale-0 transition-all duration-300"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-stone-900/60 text-stone-500 border border-stone-800 flex items-center justify-center text-xs font-mono">
-                {pilot.displayName.slice(0, 2).toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1">
-                <p className="font-bold text-stone-300 tracking-tight text-xs truncate" title={pilot.displayName}>
-                  {pilot.displayName}
-                </p>
-                {isAdmin && (
-                  <span title="Administrador">
-                    <Shield className="w-3.5 h-3.5 text-red-400/70 flex-shrink-0" />
-                  </span>
-                )}
-              </div>
-              <span className="inline-flex text-[8px] font-mono font-bold uppercase tracking-wider text-amber-500/80 bg-amber-950/10 border border-amber-900/10 px-1.5 py-0.5 rounded">
-                Banca / Sin Asiento
-              </span>
-            </div>
-
-            {/* No Dorsal Badge */}
-            <div className="font-mono text-center flex flex-col justify-center items-center bg-stone-900/40 border border-stone-800 rounded-lg w-10 h-10 flex-shrink-0">
-              <span className="text-[7px] text-stone-600 font-bold uppercase leading-none">Nº</span>
-              <span className="text-xs text-stone-500 font-bold leading-none mt-0.5">--</span>
-            </div>
-          </div>
-
-          {/* Stats row with preferred garage & nationality */}
-          <div className="pt-3 border-t border-stone-800/40 grid grid-cols-2 gap-2 text-[10.5px] font-mono">
-            {/* Preferred Garage */}
-            <div className="bg-stone-900/30 p-1.5 rounded border border-stone-800/10 flex flex-col justify-between">
-              <span className="text-stone-600 text-[8px] uppercase tracking-wider">Garaje</span>
-              <span className="text-stone-400 font-bold truncate mt-0.5" title={pilot.carPreference}>
-                {pilot.carPreference ? pilot.carPreference.split(" | ")[0] : "Sin definir"}
-              </span>
-            </div>
-
-            {/* Simulador */}
-            <div className="bg-stone-900/30 p-1.5 rounded border border-stone-800/10 flex flex-col justify-between">
-              <span className="text-stone-600 text-[8px] uppercase tracking-wider">Simulador</span>
-              <span className="text-cyan-500 font-bold truncate mt-0.5" title={pilot.preferredGame}>
-                {pilot.preferredGame || "N/A"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Instagram & Steam ID */}
-        <div className="mt-3 pt-2.5 border-t border-stone-800/20 space-y-1 text-[9.5px] font-mono text-stone-500">
-          <div className="flex justify-between items-center px-0.5">
-            <span>Steam ID</span>
-            <span className="text-stone-400 truncate max-w-[110px]" title={pilot.steamId || ""}>
-              {pilot.steamId || "--"}
-            </span>
-          </div>
-          <div className="flex justify-between items-center px-0.5">
-            <span>Instagram</span>
-            {pilot.instagram ? (
-              <span className="text-pink-500/70 font-medium flex items-center gap-0.5 truncate max-w-[110px]" title={pilot.instagram}>
-                <Instagram className="w-2.5 h-2.5 flex-shrink-0" />
-                {pilot.instagram}
-              </span>
-            ) : (
-              <span>--</span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Group vehicles by category
+  const categories: Array<{
+    id: "GT3" | "LMP2";
+    title: string;
+    subtitle: string;
+    colorTheme: string;
+  }> = [
+    {
+      id: "GT3",
+      title: "Categoría Gran Turismo (GT3)",
+      subtitle: "Competición de Turismos GT3 de alta carga aerodinámica",
+      colorTheme: "border-red-500/30 bg-red-950/10 text-red-400",
+    },
+    {
+      id: "LMP2",
+      title: "Categoría Prototipos (LMP2)",
+      subtitle: "División Le Mans Prototype 2 de máxima velocidad en curva",
+      colorTheme: "border-fuchsia-500/30 bg-fuchsia-950/10 text-fuchsia-400",
+    },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-800 pb-4 gap-4">
         <div>
@@ -270,7 +313,7 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
             Roster Oficial ALR
           </h2>
           <p className="text-xs text-stone-500 font-mono mt-1 uppercase tracking-wider">
-            Plantilla de corredores clasificados por vehículo y divisiones oficiales
+            Estructura jerárquica por Categoría, Vehículo y Dorsal de Competición
           </p>
         </div>
 
@@ -292,203 +335,358 @@ export default function Roster({ users, isLoading, onViewPilot }: RosterProps) {
         </div>
       </div>
 
-      {/* Grid of driver profiles categorized by vehicles */}
+      {/* Roster Grid Content */}
       {isLoading ? (
         <div className="space-y-8 animate-pulse">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 gap-8">
             <div className="h-64 bg-[#111113] border border-stone-800 rounded-2xl" />
             <div className="h-64 bg-[#111113] border border-stone-800 rounded-2xl" />
           </div>
-          <div className="h-44 bg-[#111113] border border-stone-800 rounded-2xl" />
         </div>
-      ) : totalFilteredCount === 0 ? (
+      ) : filteredPilots.length === 0 ? (
         <div className="border border-stone-800 border-dashed rounded-xl p-10 text-center space-y-2">
           <RefreshCw className="w-8 h-8 text-stone-600 mx-auto animate-spin" />
-          <h3 className="font-bold text-stone-400 font-mono">SIN PILOTOS REGISTRADOS</h3>
-          <p className="text-stone-500 text-xs">No hay pilotos homologados oficiales bajo el simulador seleccionado.</p>
+          <h3 className="font-bold text-stone-400 font-mono">
+            SIN PILOTOS REGISTRADOS
+          </h3>
+          <p className="text-stone-500 text-xs">
+            No hay pilotos homologados bajo el simulador seleccionado.
+          </p>
         </div>
       ) : (
-        <div className="space-y-8 animate-fade-in">
-          {/* Active squads list */}
-          
-          {/* Lexus RC F | GT3 Section */}
-          <div className="bg-[#141011]/40 border border-red-500/15 rounded-2xl p-5 md:p-6 space-y-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-red-950/40 pb-3">
+        <div className="space-y-10 animate-fade-in">
+          {/* Loop over General Categories */}
+          {categories.map((cat) => {
+            const catVehicles = OFFICIAL_VEHICLES.filter(
+              (v) => v.category === cat.id
+            );
+
+            // Total pilots in this category
+            const totalCatPilots = filteredPilots.filter((p) => {
+              const vehId = getPilotVehicle(p);
+              return catVehicles.some((v) => v.id === vehId);
+            });
+
+            return (
+              <div
+                key={cat.id}
+                className="bg-[#121215] border border-stone-800 rounded-2xl p-5 md:p-7 space-y-6 shadow-2xl relative overflow-hidden"
+              >
+                {/* Category Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-800 pb-4 gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-3 bg-stone-900 border border-stone-800 rounded-xl text-cyan-400 shadow-inner">
+                      <Layers className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-black text-white uppercase tracking-wider font-display">
+                          {cat.title}
+                        </h3>
+                        <span
+                          className={`text-[10px] px-2.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider border ${cat.colorTheme}`}
+                        >
+                          {cat.id}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-400 font-mono mt-0.5">
+                        {cat.subtitle}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-xs px-3 py-1.5 bg-stone-900 border border-stone-800 rounded-full text-stone-300 font-bold font-mono self-start sm:self-auto">
+                    {totalCatPilots.length}{" "}
+                    {totalCatPilots.length === 1
+                      ? "Piloto en Categoría"
+                      : "Pilotos en Categoría"}
+                  </span>
+                </div>
+
+                {/* Vehicles Grouped inside this Category */}
+                <div className="space-y-8">
+                  {catVehicles.map((veh) => {
+                    const vehPilots = filteredPilots.filter(
+                      (p) => getPilotVehicle(p) === veh.id
+                    );
+
+                    // Helper to normalize dorsal numbers (e.g. "05" -> "5", "08" -> "8")
+                    const normalizeDorsal = (d?: string) => {
+                      if (!d || d === "--") return "";
+                      const num = parseInt(d, 10);
+                      return isNaN(num) ? d.trim() : String(num);
+                    };
+
+                    // Dynamically build all distinct dorsals for this vehicle
+                    const defaultDorsals = (veh.defaultDorsals || []).map(normalizeDorsal);
+                    const customDorsals = vehPilots
+                      .map((p) => normalizeDorsal(p.raceNumber))
+                      .filter(Boolean);
+
+                    const allDorsals = Array.from(
+                      new Set([...defaultDorsals, ...customDorsals])
+                    ).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+                    // Add an unassigned dorsal box if there are pilots for this vehicle with no dorsal
+                    const unassignedPilots = vehPilots.filter(
+                      (p) => !p.raceNumber || p.raceNumber === "--"
+                    );
+
+                    return (
+                      <div
+                        key={veh.id}
+                        className={`bg-[#18181c]/70 border ${veh.borderColor} rounded-2xl p-5 space-y-5 shadow-lg relative overflow-hidden`}
+                      >
+                        {/* Vehicle Sub-header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-800/80 pb-3 gap-2">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`p-2.5 rounded-xl border ${veh.borderColor} ${veh.bgGlow} ${veh.textColor}`}
+                            >
+                              <Car className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-base font-black text-white uppercase tracking-wider font-mono">
+                                  {veh.name}
+                                </h4>
+                                {veh.year && (
+                                  <span className="text-xs text-stone-500 font-mono font-bold">
+                                    {veh.year}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-stone-400 font-mono mt-0.5">
+                                Marca: {veh.brand} • Agrupación Dinámica por Dorsal
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="text-xs px-3 py-1 bg-stone-900/90 border border-stone-800 rounded-full text-stone-300 font-mono font-bold self-start sm:self-auto">
+                            {vehPilots.length}{" "}
+                            {vehPilots.length === 1 ? "Corredor" : "Corredores"}
+                          </span>
+                        </div>
+
+                        {/* Grid of Dynamic Dorsals for this Vehicle */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          {allDorsals.map((dorsalNum) => {
+                            const dorsalPilots = vehPilots.filter(
+                              (p) => normalizeDorsal(p.raceNumber) === dorsalNum
+                            );
+
+                            return (
+                              <div
+                                key={dorsalNum}
+                                className={`bg-[#131316]/90 border ${veh.borderColor} rounded-xl p-4 space-y-3.5 shadow-inner`}
+                              >
+                                {/* Dorsal Header */}
+                                <div className="flex items-center justify-between border-b border-stone-800/80 pb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Hash className={`w-4 h-4 ${veh.textColor}`} />
+                                    <span
+                                      className={`font-mono text-xs font-black uppercase tracking-wider ${veh.textColor}`}
+                                    >
+                                      Asiento / Dorsals #{dorsalNum}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-stone-500 font-bold">
+                                    {dorsalPilots.length}{" "}
+                                    {dorsalPilots.length === 1 ? "Piloto" : "Pilotos"}
+                                  </span>
+                                </div>
+
+                                {/* Pilots inside this specific Dorsal Box */}
+                                {dorsalPilots.length === 0 ? (
+                                  <div className="py-5 text-center text-xs font-mono text-stone-600 border border-dashed border-stone-800/60 rounded-lg">
+                                    Asiento oficial #{dorsalNum} disponible
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {dorsalPilots.map((pilot) =>
+                                      renderPilotCard(pilot, veh)
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Unassigned Dorsal Box if needed */}
+                          {unassignedPilots.length > 0 && (
+                            <div className="bg-[#131316]/90 border border-stone-800 rounded-xl p-4 space-y-3.5 shadow-inner">
+                              <div className="flex items-center justify-between border-b border-stone-800/80 pb-2">
+                                <span className="font-mono text-xs font-black uppercase tracking-wider text-amber-400">
+                                  Dorsal Pendiente / Asignar
+                                </span>
+                                <span className="text-[10px] font-mono text-stone-500 font-bold">
+                                  {unassignedPilots.length} Pilotos
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {unassignedPilots.map((pilot) =>
+                                  renderPilotCard(pilot, veh)
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* General Box for Reserves / Banca */}
+          {(() => {
+            const reservePilots = filteredPilots
+              .filter((p) => getPilotVehicle(p) === "Reserva")
+              .sort((a, b) => {
+                const numA = parseInt(a.raceNumber || "999", 10);
+                const numB = parseInt(b.raceNumber || "999", 10);
+                return numA - numB;
+              });
+
+            return (
+              <div className="bg-[#121215] border border-stone-800 rounded-2xl p-6 md:p-7 space-y-6 shadow-2xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-800 pb-4 gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-3 bg-stone-900 border border-stone-800 rounded-xl text-amber-500 shadow-inner">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-wider font-display">
+                        Banca de Reserva / Pruebas
+                      </h3>
+                      <p className="text-xs text-stone-400 font-mono mt-0.5">
+                        Pilotos homologados aprobados sin coche asignado actualmente
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs px-3 py-1.5 bg-stone-900 border border-stone-800 rounded-full text-stone-400 font-bold font-mono self-start sm:self-auto">
+                    {reservePilots.length}{" "}
+                    {reservePilots.length === 1 ? "Piloto" : "Pilotos"}
+                  </span>
+                </div>
+
+                {reservePilots.length === 0 ? (
+                  <div className="bg-[#18181c]/40 border border-stone-800/40 p-6 rounded-xl text-center text-xs font-mono text-stone-500">
+                    Todos los pilotos oficiales tienen una categoría y coche asignado actualmente.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {reservePilots.map((pilot) => renderPilotCard(pilot))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Edit Vehicle & Dorsal Assignment Modal */}
+      {editingPilot && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#141416] border border-stone-800 rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl relative">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-950/40 border border-red-500/30 rounded-xl text-red-400">
-                  <Car className="w-5 h-5" />
+                <div className="p-2 bg-cyan-950/40 border border-cyan-500/30 rounded-xl text-cyan-400">
+                  <Settings className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-white uppercase tracking-wider font-mono">
-                    Lexus RC F | GT3
+                  <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                    Asignación de Vehículo / Dorsal
                   </h3>
-                  <p className="text-[10px] text-red-500/80 font-mono uppercase tracking-widest">
-                    División GT3 • Asientos oficiales #05 / #08
+                  <p className="text-[11px] text-stone-400 font-mono truncate max-w-[220px]">
+                    {editingPilot.displayName}
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] px-2.5 py-1 bg-red-950/30 border border-red-500/20 rounded-full text-red-400 font-bold font-mono">
-                {filteredFerrari.length} {filteredFerrari.length === 1 ? "Piloto" : "Pilotos"}
-              </span>
+
+              <button
+                type="button"
+                onClick={() => setEditingPilot(null)}
+                className="p-1.5 text-stone-400 hover:text-white hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {filteredFerrari.length === 0 ? (
-              <div className="bg-[#111113]/40 border border-stone-800/40 p-8 rounded-xl text-center text-xs font-mono text-stone-500">
-                Ningún piloto activo en pista con este filtro.
+            {/* Form */}
+            <form onSubmit={handleSaveAssignment} className="space-y-4">
+              {saveError && (
+                <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-400 font-mono">
+                  {saveError}
+                </div>
+              )}
+
+              {/* Vehicle Selection */}
+              <div>
+                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
+                  Vehículo de Competición
+                </label>
+                <select
+                  required
+                  value={editCarPref}
+                  onChange={(e) => setEditCarPref(e.target.value)}
+                  className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="">-- Sin Vehículo (Banca de Reserva) --</option>
+                  {OFFICIAL_VEHICLES.map((veh) => (
+                    <option key={veh.id} value={veh.id}>
+                      {veh.name} ({veh.category})
+                    </option>
+                  ))}
+                  <option value="Banca">Banca / Sin Asiento</option>
+                </select>
+                <p className="text-[10px] text-stone-500 font-mono mt-1">
+                  El corredor se agrupará dinámicamente en su categoría y vehículo en el Roster.
+                </p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Coche #05 */}
-                <div className="bg-[#1a1213]/40 border border-red-500/10 rounded-xl p-4 flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-red-950/40 pb-2">
-                    <span className="text-xs font-mono font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                      Coche #05
-                    </span>
-                    <span className="text-[10px] text-stone-500 font-mono">
-                      {filteredFerrari.filter(p => p.raceNumber === "05").length} {filteredFerrari.filter(p => p.raceNumber === "05").length === 1 ? "Piloto" : "Pilotos"}
-                    </span>
-                  </div>
-                  {filteredFerrari.filter(p => p.raceNumber === "05").length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center py-6">
-                      <p className="text-[10px] text-stone-600 font-mono italic">Sin pilotos asignados</p>
-                    </div>
+
+              {/* Dorsal Number */}
+              <div>
+                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
+                  Número de Dorsal / Coche
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: 05, 08, 15, 21, 32, 43, 91, 92..."
+                  value={editRaceNumber}
+                  onChange={(e) => setEditRaceNumber(e.target.value)}
+                  className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
+                />
+                <p className="text-[10px] text-stone-500 font-mono mt-1">
+                  Dorsal oficial visible en la ficha de piloto y en el recuadro de asiento.
+                </p>
+              </div>
+
+              {/* Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingPilot(null)}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-stone-300 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-black rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 shadow-[0_0_15px_rgba(34,211,238,0.3)] disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {filteredFerrari.filter(p => p.raceNumber === "05").map((pilot) => renderPilotCard(pilot))}
-                    </div>
+                    <Check className="w-4 h-4" />
                   )}
-                </div>
-
-                {/* Coche #08 */}
-                <div className="bg-[#1a1213]/40 border border-red-500/10 rounded-xl p-4 flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-red-950/40 pb-2">
-                    <span className="text-xs font-mono font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                      Coche #08
-                    </span>
-                    <span className="text-[10px] text-stone-500 font-mono">
-                      {filteredFerrari.filter(p => p.raceNumber === "08").length} {filteredFerrari.filter(p => p.raceNumber === "08").length === 1 ? "Piloto" : "Pilotos"}
-                    </span>
-                  </div>
-                  {filteredFerrari.filter(p => p.raceNumber === "08").length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center py-6">
-                      <p className="text-[10px] text-stone-600 font-mono italic">Sin pilotos asignados</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {filteredFerrari.filter(p => p.raceNumber === "08").map((pilot) => renderPilotCard(pilot))}
-                    </div>
-                  )}
-                </div>
+                  <span>Guardar Asignación</span>
+                </button>
               </div>
-            )}
-          </div>
-
-          {/* Oreca 07 LMP2 Section */}
-          <div className="bg-[#111014]/40 border border-fuchsia-500/15 rounded-2xl p-5 md:p-6 space-y-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-fuchsia-950/40 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-fuchsia-950/40 border border-fuchsia-500/30 rounded-xl text-fuchsia-400">
-                  <Car className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-white uppercase tracking-wider font-mono">
-                    Oreca 07 LMP2
-                  </h3>
-                  <p className="text-[10px] text-fuchsia-500/80 font-mono uppercase tracking-widest">
-                    División Prototipos • Asientos oficiales #32 / #43
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] px-2.5 py-1 bg-fuchsia-950/30 border border-fuchsia-500/20 rounded-full text-fuchsia-400 font-bold font-mono">
-                {filteredOreca.length} {filteredOreca.length === 1 ? "Piloto" : "Pilotos"}
-              </span>
-            </div>
-
-            {filteredOreca.length === 0 ? (
-              <div className="bg-[#111113]/40 border border-stone-800/40 p-8 rounded-xl text-center text-xs font-mono text-stone-500">
-                Ningún piloto activo en pista con este filtro.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Coche #32 */}
-                <div className="bg-[#141217]/40 border border-fuchsia-500/10 rounded-xl p-4 flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-fuchsia-950/40 pb-2">
-                    <span className="text-xs font-mono font-bold text-fuchsia-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-pulse" />
-                      Coche #32
-                    </span>
-                    <span className="text-[10px] text-stone-500 font-mono">
-                      {filteredOreca.filter(p => p.raceNumber === "32").length} {filteredOreca.filter(p => p.raceNumber === "32").length === 1 ? "Piloto" : "Pilotos"}
-                    </span>
-                  </div>
-                  {filteredOreca.filter(p => p.raceNumber === "32").length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center py-6">
-                      <p className="text-[10px] text-stone-600 font-mono italic">Sin pilotos asignados</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {filteredOreca.filter(p => p.raceNumber === "32").map((pilot) => renderPilotCard(pilot))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Coche #43 */}
-                <div className="bg-[#141217]/40 border border-fuchsia-500/10 rounded-xl p-4 flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-fuchsia-950/40 pb-2">
-                    <span className="text-xs font-mono font-bold text-fuchsia-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-pulse" />
-                      Coche #43
-                    </span>
-                    <span className="text-[10px] text-stone-500 font-mono">
-                      {filteredOreca.filter(p => p.raceNumber === "43").length} {filteredOreca.filter(p => p.raceNumber === "43").length === 1 ? "Piloto" : "Pilotos"}
-                    </span>
-                  </div>
-                  {filteredOreca.filter(p => p.raceNumber === "43").length === 0 ? (
-                    <div className="flex-1 flex items-center justify-center py-6">
-                      <p className="text-[10px] text-stone-600 font-mono italic">Sin pilotos asignados</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {filteredOreca.filter(p => p.raceNumber === "43").map((pilot) => renderPilotCard(pilot))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Reserve list / Banca */}
-          <div className="bg-stone-950/30 border border-stone-800/60 rounded-2xl p-5 md:p-6 space-y-4 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-800/80 pb-3 gap-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-stone-900 border border-stone-800 rounded-xl text-amber-500">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-wider font-mono">
-                    Banca de Reserva / Pruebas
-                  </h3>
-                  <p className="text-[10px] text-stone-500 font-mono">
-                    Pilotos oficiales aprobados sin dorsal oficial asignado en pista
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] px-2.5 py-1 bg-stone-900 border border-stone-800 rounded-full text-stone-400 font-bold font-mono self-start sm:self-auto">
-                {filteredReserves.length} {filteredReserves.length === 1 ? "Piloto" : "Pilotos"}
-              </span>
-            </div>
-
-            {filteredReserves.length === 0 ? (
-              <div className="bg-[#111113]/20 border border-stone-800/40 p-6 rounded-xl text-center text-xs font-mono text-stone-500">
-                Todos los pilotos oficiales tienen asientos activos asignados actualmente.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {filteredReserves.map((pilot) => renderReserveCard(pilot))}
-              </div>
-            )}
+            </form>
           </div>
         </div>
       )}

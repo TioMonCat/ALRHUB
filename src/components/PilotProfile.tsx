@@ -170,12 +170,18 @@ export default function PilotProfile({ pilot, attendance, onBack }: PilotProfile
   // UI helpers
   const country    = COUNTRIES.find(c => c.code === pilot.country?.toLowerCase());
   const isAdmin    = pilot.role === "admin";
-  const isFerrari  = pilot.raceNumber === "05" || pilot.raceNumber === "08";
-  const isOreca    = pilot.raceNumber === "32" || pilot.raceNumber === "43";
-  const accentColor = isFerrari ? "red" : isOreca ? "fuchsia" : "amber";
+  const isBMW     = pilot.carPreference?.includes("BMW") || pilot.raceNumber === "23";
+  const isPorsche = pilot.carPreference?.includes("Porsche") || pilot.carPreference?.includes("Porshe") || pilot.carPreference?.includes("992") || pilot.raceNumber === "91";
+  const isLexus   = pilot.carPreference?.includes("Lexus") || pilot.raceNumber === "5" || pilot.raceNumber === "8" || pilot.raceNumber === "05" || pilot.raceNumber === "08";
+  const isGt3     = isBMW || isPorsche || isLexus || pilot.carPreference?.includes("GT3");
+  const isOreca   = pilot.carPreference?.includes("Oreca") || pilot.carPreference?.includes("LMP2") || pilot.raceNumber === "32" || pilot.raceNumber === "43";
+
+  const accentColor = isBMW ? "blue" : isPorsche ? "emerald" : isGt3 ? "red" : isOreca ? "fuchsia" : "amber";
 
   const accent = {
     red:     { border: "border-red-500/30",     glow: "shadow-[0_0_40px_rgba(239,68,68,0.07)]",     text: "text-red-400",     bg: "bg-red-950/30",     dot: "bg-red-500",     badge: "bg-red-950/50 border-red-500/30 text-red-400",     bar: "bg-red-500" },
+    blue:    { border: "border-blue-500/30",    glow: "shadow-[0_0_40px_rgba(59,130,246,0.07)]",    text: "text-blue-400",    bg: "bg-blue-950/30",    dot: "bg-blue-500",    badge: "bg-blue-950/50 border-blue-500/30 text-blue-400",    bar: "bg-blue-500" },
+    emerald: { border: "border-emerald-500/30", glow: "shadow-[0_0_40px_rgba(16,185,129,0.07)]",   text: "text-emerald-400", bg: "bg-emerald-950/30", dot: "bg-emerald-500", badge: "bg-emerald-950/50 border-emerald-500/30 text-emerald-400", bar: "bg-emerald-500" },
     fuchsia: { border: "border-fuchsia-500/30", glow: "shadow-[0_0_40px_rgba(217,70,239,0.07)]",   text: "text-fuchsia-400", bg: "bg-fuchsia-950/30", dot: "bg-fuchsia-500", badge: "bg-fuchsia-950/50 border-fuchsia-500/30 text-fuchsia-400", bar: "bg-fuchsia-500" },
     amber:   { border: "border-amber-500/30",   glow: "shadow-[0_0_40px_rgba(245,158,11,0.07)]",   text: "text-amber-400",   bg: "bg-amber-950/30",   dot: "bg-amber-500",   badge: "bg-amber-950/50 border-amber-500/30 text-amber-400",   bar: "bg-amber-500" },
   }[accentColor];

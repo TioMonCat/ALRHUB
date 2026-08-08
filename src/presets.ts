@@ -1,5 +1,72 @@
 import { SetupTemplate, SetupSection, FieldType } from "./types";
 
+export interface OfficialVehicle {
+  id: string;
+  name: string;
+  category: "GT3" | "LMP2";
+  brand: string;
+  year?: string;
+  defaultDorsals?: string[];
+  badgeColor: string;
+  borderColor: string;
+  textColor: string;
+  bgGlow: string;
+  badgeBg: string;
+}
+
+export const OFFICIAL_VEHICLES: OfficialVehicle[] = [
+  {
+    id: "Lexus RC F | GT3",
+    name: "Lexus RC F GT3",
+    category: "GT3",
+    brand: "Lexus",
+    defaultDorsals: ["5", "8"],
+    badgeColor: "red",
+    borderColor: "border-red-500/20",
+    textColor: "text-red-400",
+    bgGlow: "bg-red-950/20",
+    badgeBg: "bg-red-950/50 border-red-500/30 text-red-400",
+  },
+  {
+    id: "BMW M4 2021 | GT3",
+    name: "BMW M4 GT3 2021",
+    category: "GT3",
+    brand: "BMW",
+    year: "2021",
+    defaultDorsals: ["23"],
+    badgeColor: "blue",
+    borderColor: "border-blue-500/20",
+    textColor: "text-blue-400",
+    bgGlow: "bg-blue-950/20",
+    badgeBg: "bg-blue-950/50 border-blue-500/30 text-blue-400",
+  },
+  {
+    id: "Porsche 992 R 2023 | GT3",
+    name: "Porsche 992 R 2023 GT3",
+    category: "GT3",
+    brand: "Porsche",
+    year: "2023",
+    defaultDorsals: ["91"],
+    badgeColor: "emerald",
+    borderColor: "border-emerald-500/20",
+    textColor: "text-emerald-400",
+    bgGlow: "bg-emerald-950/20",
+    badgeBg: "bg-emerald-950/50 border-emerald-500/30 text-emerald-400",
+  },
+  {
+    id: "Oreca 07 | LMP2",
+    name: "Oreca 07 LMP2",
+    category: "LMP2",
+    brand: "Oreca",
+    defaultDorsals: ["32", "43"],
+    badgeColor: "fuchsia",
+    borderColor: "border-fuchsia-500/20",
+    textColor: "text-fuchsia-400",
+    bgGlow: "bg-fuchsia-950/20",
+    badgeBg: "bg-fuchsia-950/50 border-fuchsia-500/30 text-fuchsia-400",
+  },
+];
+
 export const LE_MANS_ULTIMATE_GT3_TEMPLATE: SetupTemplate = {
   id: "le-mans-ultimate-gt3",
   title: "Le Mans Ultimate (GT3)",
