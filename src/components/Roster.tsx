@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 import { UserProfile } from "../types";
-import { COUNTRIES, OFFICIAL_VEHICLES, OfficialVehicle } from "../presets";
+import {
+  COUNTRIES,
+  OFFICIAL_VEHICLES,
+  OFFICIAL_LEAGUES,
+  OfficialVehicle,
+  OfficialLeague,
+} from "../presets";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
@@ -16,6 +22,8 @@ import {
   Edit3,
   Layers,
   Hash,
+  Trophy,
+  Filter,
 } from "lucide-react";
 
 interface RosterProps {
@@ -32,9 +40,11 @@ export default function Roster({
   currentUserProfile,
 }: RosterProps) {
   const [filterSimulator, setFilterSimulator] = useState<string>("Todos");
+  const [filterLeague, setFilterLeague] = useState<string>(OFFICIAL_LEAGUES[0]?.name || "ERC: Hypercar");
 
-  // State for vehicle / dorsal assignment edit modal
+  // State for vehicle / dorsal / leagues assignment edit modal
   const [editingPilot, setEditingPilot] = useState<UserProfile | null>(null);
+  const [editLeagues, setEditLeagues] = useState<string[]>([]);
   const [editCarPref, setEditCarPref] = useState<string>("");
   const [editRaceNumber, setEditRaceNumber] = useState<string>("");
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -45,9 +55,28 @@ export default function Roster({
     (u) => (u.role === "piloto" || u.role === "admin") && u.status === "aprobado"
   );
 
+  // Helper to get pilot's participating leagues
+  const getPilotLeagues = (pilot: UserProfile): string[] => {
+    if (pilot.leagues && pilot.leagues.length > 0) {
+      return pilot.leagues;
+    }
+    // Fallback inference based on carPreference
+    const pref = pilot.carPreference || "";
+    if (pref.includes("Ferrari") || pref.includes("296") || pref.includes("499P")) {
+      return ["Ferrari GT3-Hypercar"];
+    }
+    if (pref.includes("Hypercar")) {
+      return ["ERC: Hypercar"];
+    }
+    return ["ERC NG"];
+  };
+
   // Helper to resolve which vehicle a pilot belongs to
   const getPilotVehicle = (pilot: UserProfile): string => {
     const pref = pilot.carPreference || "";
+    if (pref.includes("296")) return "Ferrari 296 GT3";
+    if (pref.includes("499P")) return "Ferrari 499P LMH";
+    if (pref.includes("Hypercar")) return "Hypercar | ERC";
     if (pref.includes("BMW")) return "BMW M4 2021 | GT3";
     if (
       pref.includes("Porsche") ||
@@ -71,14 +100,19 @@ export default function Roster({
     if (pilot.raceNumber === "91") return "Porsche 992 R 2023 | GT3";
     if (pilot.raceNumber === "32" || pilot.raceNumber === "43")
       return "Oreca 07 | LMP2";
+    if (pilot.raceNumber === "29" || pilot.raceNumber === "51")
+      return "Ferrari 296 GT3";
 
     return "Reserva";
   };
 
-  // Extract unique simulators/platforms for filtering
+  // Simulators list for filtering
   const simulators = ["Todos", "Assetto Corsa", "Le Mans Ultimate"];
 
-  // Filter list by simulator
+  // Leagues list for filtering
+  const leagueFilterOptions = OFFICIAL_LEAGUES.map((l) => l.name);
+
+  // Filter pilots by simulator
   const filterByGame = (list: UserProfile[]) => {
     return list.filter((p) => {
       if (filterSimulator === "Todos") return true;
@@ -94,12 +128,23 @@ export default function Roster({
   const openEditModal = (pilot: UserProfile, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingPilot(pilot);
+    setEditLeagues(getPilotLeagues(pilot));
     setEditCarPref(pilot.carPreference || getPilotVehicle(pilot));
     setEditRaceNumber(pilot.raceNumber || "");
     setSaveError(null);
   };
 
-  // Save updated vehicle and dorsal assignment to Firestore
+  // Toggle league in edit modal
+  const toggleEditLeague = (leagueName: string) => {
+    if (editLeagues.includes(leagueName)) {
+      if (editLeagues.length === 1) return; // Must keep at least one league
+      setEditLeagues(editLeagues.filter((l) => l !== leagueName));
+    } else {
+      setEditLeagues([...editLeagues, leagueName]);
+    }
+  };
+
+  // Save updated vehicle, leagues, and dorsal assignment to Firestore
   const handleSaveAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPilot) return;
@@ -109,11 +154,13 @@ export default function Roster({
     try {
       const userRef = doc(db, "users", editingPilot.uid);
       await updateDoc(userRef, {
+        leagues: editLeagues,
         carPreference: editCarPref,
         raceNumber: editRaceNumber,
       });
 
       // Update in-memory reference
+      editingPilot.leagues = editLeagues;
       editingPilot.carPreference = editCarPref;
       editingPilot.raceNumber = editRaceNumber;
 
@@ -121,7 +168,7 @@ export default function Roster({
     } catch (err: any) {
       console.error("Error updating assignment:", err);
       setSaveError(
-        err?.message || "Error al actualizar asignación del vehículo"
+        err?.message || "Error al actualizar asignación de ligas / vehículo"
       );
     } finally {
       setIsSaving(false);
@@ -137,6 +184,8 @@ export default function Roster({
     const canEdit =
       currentUserProfile?.role === "admin" ||
       currentUserProfile?.uid === pilot.uid;
+
+    const pilotLeagues = getPilotLeagues(pilot);
 
     return (
       <div
@@ -177,6 +226,24 @@ export default function Roster({
                 {isAdmin ? "Comisario" : pilot.experience || "Piloto Oficial"}
               </span>
             </div>
+          </div>
+
+          {/* League Badges */}
+          <div className="flex flex-wrap gap-1 pt-1">
+            {pilotLeagues.map((lg) => {
+              const matchedLg = OFFICIAL_LEAGUES.find((l) => l.name === lg);
+              const colorClass = matchedLg
+                ? matchedLg.badgeBg
+                : "bg-stone-900 border-stone-800 text-stone-400";
+              return (
+                <span
+                  key={lg}
+                  className={`text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider border ${colorClass}`}
+                >
+                  {lg}
+                </span>
+              );
+            })}
           </div>
 
           {/* Details row: Nationality & Simulator */}
@@ -264,56 +331,64 @@ export default function Roster({
     );
   };
 
-  // Group vehicles by category
-  const categories: Array<{
-    id: "GT3" | "LMP2";
-    title: string;
-    subtitle: string;
-    colorTheme: string;
-  }> = [
-    {
-      id: "GT3",
-      title: "Categoría Gran Turismo (GT3)",
-      subtitle: "Competición de Turismos GT3 de alta carga aerodinámica",
-      colorTheme: "border-red-500/30 bg-red-950/10 text-red-400",
-    },
-    {
-      id: "LMP2",
-      title: "Categoría Prototipos (LMP2)",
-      subtitle: "División Le Mans Prototype 2 de máxima velocidad en curva",
-      colorTheme: "border-fuchsia-500/30 bg-fuchsia-950/10 text-fuchsia-400",
-    },
-  ];
+  // Filter leagues to render
+  const visibleLeagues = OFFICIAL_LEAGUES.filter((lg) => lg.name === filterLeague);
 
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-800 pb-4 gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-stone-800 pb-4 gap-4">
         <div>
           <h2 className="text-xl font-bold text-white tracking-tight font-display flex items-center gap-2">
             <Award className="w-5 h-5 text-amber-400" />
             Roster Oficial ALR
           </h2>
           <p className="text-xs text-stone-500 font-mono mt-1 uppercase tracking-wider">
-            Estructura jerárquica por Categoría, Vehículo y Dorsal de Competición
+            Estructura organizativa por Ligas, Vehículo y Dorsal de Competición
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-2.5 overflow-x-auto pb-1 self-start sm:self-center">
-          {simulators.map((simName) => (
-            <button
-              key={simName}
-              onClick={() => setFilterSimulator(simName)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase tracking-wider border transition-all cursor-pointer whitespace-nowrap ${
-                filterSimulator === simName
-                  ? "bg-cyan-500 border-cyan-400 text-black shadow-[0_0_10px_rgba(34,211,238,0.2)]"
-                  : "bg-stone-900/60 hover:bg-stone-800 border-stone-800 text-stone-400"
-              }`}
-            >
-              {simName}
-            </button>
-          ))}
+        {/* Filters Group */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+          {/* League Filter */}
+          <div className="flex items-center gap-1.5 bg-[#121215] border border-stone-800 rounded-xl p-1.5 overflow-x-auto">
+            <Trophy className="w-3.5 h-3.5 text-amber-400 ml-1 flex-shrink-0" />
+            <div className="flex gap-1">
+              {leagueFilterOptions.map((lgName) => (
+                <button
+                  key={lgName}
+                  onClick={() => setFilterLeague(lgName)}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-mono font-bold uppercase tracking-wider border transition-all cursor-pointer whitespace-nowrap ${
+                    filterLeague === lgName
+                      ? "bg-amber-500 border-amber-400 text-black shadow-[0_0_10px_rgba(245,158,11,0.2)]"
+                      : "bg-stone-900/60 hover:bg-stone-800 border-stone-800/80 text-stone-400"
+                  }`}
+                >
+                  {lgName}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Simulator Filter */}
+          <div className="flex items-center gap-1.5 bg-[#121215] border border-stone-800 rounded-xl p-1.5 overflow-x-auto">
+            <Filter className="w-3.5 h-3.5 text-cyan-400 ml-1 flex-shrink-0" />
+            <div className="flex gap-1">
+              {simulators.map((simName) => (
+                <button
+                  key={simName}
+                  onClick={() => setFilterSimulator(simName)}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-mono font-bold uppercase tracking-wider border transition-all cursor-pointer whitespace-nowrap ${
+                    filterSimulator === simName
+                      ? "bg-cyan-500 border-cyan-400 text-black shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+                      : "bg-stone-900/60 hover:bg-stone-800 border-stone-800/80 text-stone-400"
+                  }`}
+                >
+                  {simName}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -332,63 +407,63 @@ export default function Roster({
             SIN PILOTOS REGISTRADOS
           </h3>
           <p className="text-stone-500 text-xs">
-            No hay pilotos homologados bajo el simulador seleccionado.
+            No hay pilotos homologados bajo los filtros seleccionados.
           </p>
         </div>
       ) : (
         <div className="space-y-10 animate-fade-in">
-          {/* Loop over General Categories */}
-          {categories.map((cat) => {
-            const catVehicles = OFFICIAL_VEHICLES.filter(
-              (v) => v.category === cat.id
+          {/* Loop over Official Leagues */}
+          {visibleLeagues.map((league) => {
+            const leagueVehicles = OFFICIAL_VEHICLES.filter(
+              (v) => v.league === league.id
             );
 
-            // Total pilots in this category
-            const totalCatPilots = filteredPilots.filter((p) => {
-              const vehId = getPilotVehicle(p);
-              return catVehicles.some((v) => v.id === vehId);
+            // Total pilots participating in this league
+            const totalLeaguePilots = filteredPilots.filter((p) => {
+              const pLeagues = getPilotLeagues(p);
+              return pLeagues.includes(league.name);
             });
 
             return (
               <div
-                key={cat.id}
+                key={league.id}
                 className="bg-[#121215] border border-stone-800 rounded-2xl p-5 md:p-7 space-y-6 shadow-2xl relative overflow-hidden"
               >
-                {/* Category Header */}
+                {/* League Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-800 pb-4 gap-3">
                   <div className="flex items-center gap-3.5">
-                    <div className="p-3 bg-stone-900 border border-stone-800 rounded-xl text-cyan-400 shadow-inner">
-                      <Layers className="w-6 h-6" />
+                    <div className={`p-3 bg-stone-900 border border-stone-800 rounded-xl ${league.textColor} shadow-inner`}>
+                      <Trophy className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="text-lg font-black text-white uppercase tracking-wider font-display">
-                          {cat.title}
+                          {league.name}
                         </h3>
                         <span
-                          className={`text-[10px] px-2.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider border ${cat.colorTheme}`}
+                          className={`text-[10px] px-2.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider border ${league.colorTheme}`}
                         >
-                          {cat.id}
+                          Liga Oficial
                         </span>
                       </div>
                       <p className="text-xs text-stone-400 font-mono mt-0.5">
-                        {cat.subtitle}
+                        {league.description}
                       </p>
                     </div>
                   </div>
 
                   <span className="text-xs px-3 py-1.5 bg-stone-900 border border-stone-800 rounded-full text-stone-300 font-bold font-mono self-start sm:self-auto">
-                    {totalCatPilots.length}{" "}
-                    {totalCatPilots.length === 1
-                      ? "Piloto en Categoría"
-                      : "Pilotos en Categoría"}
+                    {totalLeaguePilots.length}{" "}
+                    {totalLeaguePilots.length === 1
+                      ? "Piloto en Liga"
+                      : "Pilotos en Liga"}
                   </span>
                 </div>
 
-                {/* Vehicles Grouped inside this Category */}
+                {/* Vehicles Grouped inside this League */}
                 <div className="space-y-8">
-                  {catVehicles.map((veh) => {
-                    const vehPilots = filteredPilots.filter(
+                  {leagueVehicles.map((veh) => {
+                    const vehPilots = totalLeaguePilots.filter(
                       (p) => getPilotVehicle(p) === veh.id
                     );
 
@@ -409,7 +484,7 @@ export default function Roster({
                       new Set([...defaultDorsals, ...customDorsals])
                     ).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
 
-                    // Add an unassigned dorsal box if there are pilots for this vehicle with no dorsal
+                    // Unassigned pilots for this vehicle
                     const unassignedPilots = vehPilots.filter(
                       (p) => !p.raceNumber || p.raceNumber === "--"
                     );
@@ -439,7 +514,7 @@ export default function Roster({
                                 )}
                               </div>
                               <p className="text-[10px] text-stone-400 font-mono mt-0.5">
-                                Marca: {veh.brand} • Agrupación Dinámica por Dorsal
+                                Marca: {veh.brand} • Categoría: {veh.category} • Agrupación Dinámica por Dorsal
                               </p>
                             </div>
                           </div>
@@ -469,7 +544,7 @@ export default function Roster({
                                     <span
                                       className={`font-mono text-xs font-black uppercase tracking-wider ${veh.textColor}`}
                                     >
-                                      Asiento / Dorsals #{dorsalNum}
+                                      Asiento / Dorsal #{dorsalNum}
                                     </span>
                                   </div>
                                   <span className="text-[10px] font-mono text-stone-500 font-bold">
@@ -543,7 +618,7 @@ export default function Roster({
                         Banca de Reserva / Pruebas
                       </h3>
                       <p className="text-xs text-stone-400 font-mono mt-0.5">
-                        Pilotos homologados aprobados sin coche asignado actualmente
+                        Pilotos homologados aprobados sin coche o liga asignada actualmente
                       </p>
                     </div>
                   </div>
@@ -555,7 +630,7 @@ export default function Roster({
 
                 {reservePilots.length === 0 ? (
                   <div className="bg-[#18181c]/40 border border-stone-800/40 p-6 rounded-xl text-center text-xs font-mono text-stone-500">
-                    Todos los pilotos oficiales tienen una categoría y coche asignado actualmente.
+                    Todos los pilotos oficiales tienen sus ligas y vehículos asignados actualmente.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -568,10 +643,10 @@ export default function Roster({
         </div>
       )}
 
-      {/* Edit Vehicle & Dorsal Assignment Modal */}
+      {/* Edit Vehicle, Dorsal & Leagues Assignment Modal */}
       {editingPilot && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-[#141416] border border-stone-800 rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl relative">
+          <div className="bg-[#141416] border border-stone-800 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-3">
@@ -580,10 +655,10 @@ export default function Roster({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
-                    Asignación de Vehículo / Dorsal
+                    Asignación de Ligas / Vehículo / Dorsal
                   </h3>
-                  <p className="text-[11px] text-stone-400 font-mono truncate max-w-[220px]">
-                    {editingPilot.displayName}
+                  <p className="text-[11px] text-stone-400 font-mono truncate max-w-[240px]">
+                    Piloto: {editingPilot.displayName}
                   </p>
                 </div>
               </div>
@@ -598,16 +673,62 @@ export default function Roster({
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSaveAssignment} className="space-y-4">
+            <form onSubmit={handleSaveAssignment} className="space-y-5">
               {saveError && (
                 <div className="p-3 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-400 font-mono">
                   {saveError}
                 </div>
               )}
 
+              {/* Leagues Selection (Multi-select) */}
+              <div>
+                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-2 font-bold flex items-center gap-1.5">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                  Ligas en las que participa (Multi-liga)
+                </label>
+                <div className="space-y-2">
+                  {OFFICIAL_LEAGUES.map((lg) => {
+                    const isChecked = editLeagues.includes(lg.name);
+                    return (
+                      <label
+                        key={lg.id}
+                        onClick={() => toggleEditLeague(lg.name)}
+                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          isChecked
+                            ? "bg-amber-950/30 border-amber-500/40 text-amber-200 shadow-inner"
+                            : "bg-[#18181b] border-stone-800/80 text-stone-400 hover:border-stone-700 hover:text-stone-200"
+                        }`}
+                      >
+                        <div>
+                          <p className="text-xs font-bold font-mono uppercase">
+                            {lg.name}
+                          </p>
+                          <p className="text-[10px] text-stone-500 font-mono mt-0.5">
+                            {lg.description}
+                          </p>
+                        </div>
+                        <div
+                          className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                            isChecked
+                              ? "bg-amber-500 border-amber-400 text-black"
+                              : "border-stone-700 bg-stone-900"
+                          }`}
+                        >
+                          {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-stone-500 font-mono mt-1.5">
+                  Puedes seleccionar múltiples ligas para que el piloto figure en cada una.
+                </p>
+              </div>
+
               {/* Vehicle Selection */}
               <div>
-                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
+                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold flex items-center gap-1.5">
+                  <Car className="w-3.5 h-3.5 text-cyan-400" />
                   Vehículo de Competición
                 </label>
                 <select
@@ -630,13 +751,13 @@ export default function Roster({
                   <option value="">-- Sin Vehículo (Banca de Reserva) --</option>
                   {OFFICIAL_VEHICLES.map((veh) => (
                     <option key={veh.id} value={veh.id}>
-                      {veh.name} ({veh.category})
+                      [{veh.league}] {veh.name} ({veh.category})
                     </option>
                   ))}
                   <option value="Banca">Banca / Sin Asiento</option>
                 </select>
                 <p className="text-[10px] text-stone-500 font-mono mt-1">
-                  El corredor se agrupará dinámicamente en su categoría y vehículo en el Roster.
+                  El corredor se agrupará dinámicamente en su vehículo y liga correspondientes.
                 </p>
               </div>
 
@@ -694,7 +815,7 @@ export default function Roster({
                     </label>
                     <input
                       type="text"
-                      placeholder="Ej: 5, 8, 23, 91, 32, 43..."
+                      placeholder="Ej: 5, 8, 23, 91, 32, 43, 29, 50, 51..."
                       value={editRaceNumber}
                       onChange={(e) => setEditRaceNumber(e.target.value)}
                       className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
@@ -707,7 +828,7 @@ export default function Roster({
               })()}
 
               {/* Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-3">
+              <div className="pt-2 flex items-center justify-end gap-3 border-t border-stone-800">
                 <button
                   type="button"
                   onClick={() => setEditingPilot(null)}

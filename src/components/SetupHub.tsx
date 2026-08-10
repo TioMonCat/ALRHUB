@@ -196,7 +196,10 @@ export default function SetupHub({
         setNewGame("Assetto Corsa");
 
         let detectedTemplate = "assetto-corsa-gt3";
-        if (carUpper.includes("LMP2") || carUpper.includes("ORECA") || carUpper.includes("LMP") || carUpper.includes("07")) {
+        if (carUpper.includes("EMKA") || carUpper.includes("963") || carUpper.includes("HYPERCAR") || carUpper.includes("LMDH")) {
+          detectedTemplate = "assetto-corsa-emka-hypercar";
+          setSetupType("LFM");
+        } else if (carUpper.includes("LMP2") || carUpper.includes("ORECA") || carUpper.includes("LMP") || carUpper.includes("07")) {
           detectedTemplate = "assetto-corsa-lmp2";
           setSetupType("LFM");
         }

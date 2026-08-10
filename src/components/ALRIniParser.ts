@@ -162,6 +162,71 @@ export const FIELD_TO_INI_MAP: Record<string, FieldMapping> = {
   "travel_range_rf": { iniSection: "PACKER_RANGE_RF", iniKey: "VALUE" },
   "travel_range_lr": { iniSection: "PACKER_RANGE_LR", iniKey: "VALUE" },
   "travel_range_rr": { iniSection: "PACKER_RANGE_RR", iniKey: "VALUE" },
+
+  // EMKA Hypercar specific mappings
+  "gears_hc": { iniSection: "GEARSET", iniKey: "VALUE" },
+  "compound_hc": { iniSection: "TYRES", iniKey: "VALUE" },
+  "press_lf_hc": { iniSection: "PRESSURE_LF", iniKey: "VALUE" },
+  "press_rf_hc": { iniSection: "PRESSURE_RF", iniKey: "VALUE" },
+  "press_lr_hc": { iniSection: "PRESSURE_LR", iniKey: "VALUE" },
+  "press_rr_hc": { iniSection: "PRESSURE_RR", iniKey: "VALUE" },
+  "fuel_hc": { iniSection: "FUEL", iniKey: "VALUE" },
+  "tc_hc": { iniSection: "TRACTION_CONTROL", iniKey: "VALUE" },
+  "mguk_hc": { iniSection: "MGUK_DELIVERY", iniKey: "VALUE" },
+  "rear_wing_hc": { iniSection: "WING_2", iniKey: "VALUE" },
+
+  "camber_lf_hc": { iniSection: "CAMBER_LF", iniKey: "VALUE" },
+  "camber_rf_hc": { iniSection: "CAMBER_RF", iniKey: "VALUE" },
+  "camber_lr_hc": { iniSection: "CAMBER_LR", iniKey: "VALUE" },
+  "camber_rr_hc": { iniSection: "CAMBER_RR", iniKey: "VALUE" },
+  "toe_lf_hc": { iniSection: "TOE_OUT_LF", iniKey: "VALUE" },
+  "toe_rf_hc": { iniSection: "TOE_OUT_RF", iniKey: "VALUE" },
+  "toe_lr_hc": { iniSection: "TOE_OUT_LR", iniKey: "VALUE" },
+  "toe_rr_hc": { iniSection: "TOE_OUT_RR", iniKey: "VALUE" },
+
+  "bump_lf_hc": { iniSection: "DAMP_BUMP_LF", iniKey: "VALUE" },
+  "bump_rf_hc": { iniSection: "DAMP_BUMP_RF", iniKey: "VALUE" },
+  "bump_lr_hc": { iniSection: "DAMP_BUMP_LR", iniKey: "VALUE" },
+  "bump_rr_hc": { iniSection: "DAMP_BUMP_RR", iniKey: "VALUE" },
+  "fst_bump_lf_hc": { iniSection: "DAMP_FAST_BUMP_LF", iniKey: "VALUE" },
+  "fst_bump_rf_hc": { iniSection: "DAMP_FAST_BUMP_RF", iniKey: "VALUE" },
+  "fst_bump_lr_hc": { iniSection: "DAMP_FAST_BUMP_LR", iniKey: "VALUE" },
+  "fst_bump_rr_hc": { iniSection: "DAMP_FAST_BUMP_RR", iniKey: "VALUE" },
+  "rebound_lf_hc": { iniSection: "DAMP_REBOUND_LF", iniKey: "VALUE" },
+  "rebound_rf_hc": { iniSection: "DAMP_REBOUND_RF", iniKey: "VALUE" },
+  "rebound_lr_hc": { iniSection: "DAMP_REBOUND_LR", iniKey: "VALUE" },
+  "rebound_rr_hc": { iniSection: "DAMP_REBOUND_RR", iniKey: "VALUE" },
+  "fst_rebound_lf_hc": { iniSection: "DAMP_FAST_REBOUND_LF", iniKey: "VALUE" },
+  "fst_rebound_rf_hc": { iniSection: "DAMP_FAST_REBOUND_RF", iniKey: "VALUE" },
+  "fst_rebound_lr_hc": { iniSection: "DAMP_FAST_REBOUND_LR", iniKey: "VALUE" },
+  "fst_rebound_rr_hc": { iniSection: "DAMP_FAST_REBOUND_RR", iniKey: "VALUE" },
+
+  "diff_power_hc": { iniSection: "DIFF_POWER", iniKey: "VALUE" },
+  "diff_preload_hc": { iniSection: "DIFF_PRELOAD", iniKey: "VALUE" },
+  "diff_coast_hc": { iniSection: "DIFF_COAST", iniKey: "VALUE" },
+
+  "brake_bias_hc": { iniSection: "FRONT_BIAS", iniKey: "VALUE" },
+  "brake_power_hc": { iniSection: "BRAKE_POWER_MULT", iniKey: "VALUE" },
+
+  "arb_front_hc": { iniSection: "ARB_FRONT", iniKey: "VALUE" },
+  "arb_rear_hc": { iniSection: "ARB_REAR", iniKey: "VALUE" },
+  "wheel_rate_lf_hc": { iniSection: "SPRING_RATE_LF", iniKey: "VALUE" },
+  "wheel_rate_rf_hc": { iniSection: "SPRING_RATE_RF", iniKey: "VALUE" },
+  "wheel_rate_lr_hc": { iniSection: "SPRING_RATE_LR", iniKey: "VALUE" },
+  "wheel_rate_rr_hc": { iniSection: "SPRING_RATE_RR", iniKey: "VALUE" },
+  "height_lf_hc": { iniSection: "ROD_LENGTH_LF", iniKey: "VALUE" },
+  "height_rf_hc": { iniSection: "ROD_LENGTH_RF", iniKey: "VALUE" },
+  "height_lr_hc": { iniSection: "ROD_LENGTH_LR", iniKey: "VALUE" },
+  "height_rr_hc": { iniSection: "ROD_LENGTH_RR", iniKey: "VALUE" },
+
+  "packer_rate_lf_hc": { iniSection: "BUMP_STOP_RATE_LF", iniKey: "VALUE" },
+  "packer_rate_rf_hc": { iniSection: "BUMP_STOP_RATE_RF", iniKey: "VALUE" },
+  "packer_rate_lr_hc": { iniSection: "BUMP_STOP_RATE_LR", iniKey: "VALUE" },
+  "packer_rate_rr_hc": { iniSection: "BUMP_STOP_RATE_RR", iniKey: "VALUE" },
+  "travel_range_lf_hc": { iniSection: "PACKER_RANGE_LF", iniKey: "VALUE" },
+  "travel_range_rf_hc": { iniSection: "PACKER_RANGE_RF", iniKey: "VALUE" },
+  "travel_range_lr_hc": { iniSection: "PACKER_RANGE_LR", iniKey: "VALUE" },
+  "travel_range_rr_hc": { iniSection: "PACKER_RANGE_RR", iniKey: "VALUE" },
 };
 
 export interface IniParseResult {
@@ -250,6 +315,18 @@ export function mapIniToSetupValues(
       } else if (fieldId === "bumpstop_rate_f" || fieldId === "bumpstop_rate_r") {
         if (rawVal === "0") rawVal = "Stiff";
         else if (rawVal === "1") rawVal = "Soft";
+      } else if (fieldId === "compound_hc") {
+        if (rawVal === "0") rawVal = "Soft";
+        else if (rawVal === "1") rawVal = "Medium";
+        else if (rawVal === "2") rawVal = "Rain";
+      } else if (fieldId === "gears_hc") {
+        if (rawVal === "0") rawVal = "Short";
+        else if (rawVal === "1") rawVal = "Long";
+      } else if (fieldId === "mguk_hc") {
+        const num = parseFloat(rawVal);
+        if (!isNaN(num)) {
+          rawVal = (num * 10).toString();
+        }
       }
       result[fieldId] = rawVal;
     }
@@ -506,12 +583,73 @@ export const CORE_LMP2_SECTIONS: Record<string, string> = {
   WING_2: "1"
 };
 
+export const CORE_EMKA_HYPERCAR_SECTIONS: Record<string, string> = {
+  ARB_FRONT: "30",
+  ARB_REAR: "40",
+  BRAKE_POWER_MULT: "99",
+  BUMP_STOP_RATE_LF: "110",
+  BUMP_STOP_RATE_LR: "200",
+  BUMP_STOP_RATE_RF: "200",
+  BUMP_STOP_RATE_RR: "200",
+  CAMBER_LF: "-38",
+  CAMBER_LR: "5",
+  CAMBER_RF: "0",
+  CAMBER_RR: "0",
+  DAMP_BUMP_LF: "7",
+  DAMP_BUMP_LR: "40",
+  DAMP_BUMP_RF: "10",
+  DAMP_BUMP_RR: "9",
+  DAMP_FAST_BUMP_LF: "49",
+  DAMP_FAST_BUMP_LR: "49",
+  DAMP_FAST_BUMP_RF: "10",
+  DAMP_FAST_BUMP_RR: "11",
+  DAMP_FAST_REBOUND_LF: "49",
+  DAMP_FAST_REBOUND_LR: "49",
+  DAMP_FAST_REBOUND_RF: "10",
+  DAMP_FAST_REBOUND_RR: "9",
+  DAMP_REBOUND_LF: "40",
+  DAMP_REBOUND_LR: "40",
+  DAMP_REBOUND_RF: "10",
+  DAMP_REBOUND_RR: "8",
+  DIFF_COAST: "190",
+  DIFF_POWER: "160",
+  DIFF_PRELOAD: "190",
+  FRONT_BIAS: "68",
+  FUEL: "120",
+  GEARSET: "0",
+  MGUK_DELIVERY: "5",
+  PACKER_RANGE_LF: "100",
+  PACKER_RANGE_LR: "100",
+  PACKER_RANGE_RF: "50",
+  PACKER_RANGE_RR: "66",
+  PRESSURE_LF: "19",
+  PRESSURE_LR: "22",
+  PRESSURE_RF: "35",
+  PRESSURE_RR: "35",
+  ROD_LENGTH_LF: "38",
+  ROD_LENGTH_LR: "20",
+  ROD_LENGTH_RF: "15",
+  ROD_LENGTH_RR: "40",
+  SPRING_RATE_LF: "0",
+  SPRING_RATE_LR: "0",
+  SPRING_RATE_RF: "4",
+  SPRING_RATE_RR: "4",
+  TOE_OUT_LF: "8",
+  TOE_OUT_LR: "10",
+  TOE_OUT_RF: "1",
+  TOE_OUT_RR: "0",
+  TRACTION_CONTROL: "8",
+  TYRES: "1",
+  WING_2: "5"
+};
+
 export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): string {
   const iniBlocks: string[] = [];
 
+  const isHypercar = template.id.includes("hypercar") || template.id.includes("emka") || (setup.templateId && (setup.templateId.includes("hypercar") || setup.templateId.includes("emka")));
   const isLmp2 = template.id.includes("lmp2") || (setup.templateId && setup.templateId.includes("lmp2"));
   const isGt3 = template.id.includes("gt3") || (setup.templateId && setup.templateId.includes("gt3"));
-  const coreDict = isLmp2 ? CORE_LMP2_SECTIONS : (isGt3 ? CORE_GT3_SECTIONS : CORE_AC_SECTIONS);
+  const coreDict = isHypercar ? CORE_EMKA_HYPERCAR_SECTIONS : (isLmp2 ? CORE_LMP2_SECTIONS : (isGt3 ? CORE_GT3_SECTIONS : CORE_AC_SECTIONS));
 
   // Core sections: and insert metadata sections, then sort everything alphabetically.
   const allSections = [
@@ -567,6 +705,18 @@ export function exportSetupToIni(setup: CarSetup, template: SetupTemplate): stri
             } else if (fieldId === "bumpstop_rate_f" || fieldId === "bumpstop_rate_r") {
               if (rawVal === "Stiff") rawVal = "0";
               else if (rawVal === "Soft") rawVal = "1";
+            } else if (fieldId === "compound_hc") {
+              if (rawVal === "Soft") rawVal = "0";
+              else if (rawVal === "Medium") rawVal = "1";
+              else if (rawVal === "Rain") rawVal = "2";
+            } else if (fieldId === "gears_hc") {
+              if (rawVal === "Short") rawVal = "0";
+              else if (rawVal === "Long") rawVal = "1";
+            } else if (fieldId === "mguk_hc") {
+              const num = parseFloat(rawVal);
+              if (!isNaN(num)) {
+                rawVal = Math.round(num / 10).toString();
+              }
             }
             val = rawVal;
             break;

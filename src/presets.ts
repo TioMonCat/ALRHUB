@@ -1,9 +1,54 @@
 import { SetupTemplate, SetupSection, FieldType } from "./types";
 
+export interface OfficialLeague {
+  id: string;
+  name: string;
+  description: string;
+  colorTheme: string;
+  badgeBg: string;
+  borderColor: string;
+  textColor: string;
+  bgGlow: string;
+}
+
+export const OFFICIAL_LEAGUES: OfficialLeague[] = [
+  {
+    id: "ERC: Hypercar",
+    name: "ERC: Hypercar",
+    description: "Liga ERC división reina Hypercar",
+    colorTheme: "border-amber-500/30 bg-amber-950/10 text-amber-400",
+    badgeBg: "bg-amber-950/50 border-amber-500/30 text-amber-400",
+    borderColor: "border-amber-500/20",
+    textColor: "text-amber-400",
+    bgGlow: "bg-amber-950/20",
+  },
+  {
+    id: "Ferrari GT3-Hypercar",
+    name: "Ferrari GT3-Hypercar",
+    description: "Liga monomarca Ferrari GT3 (296 GT3) y Hypercar (499P LMH)",
+    colorTheme: "border-red-500/30 bg-red-950/10 text-red-400",
+    badgeBg: "bg-red-950/50 border-red-500/30 text-red-400",
+    borderColor: "border-red-500/20",
+    textColor: "text-red-400",
+    bgGlow: "bg-red-950/20",
+  },
+  {
+    id: "ERC NG",
+    name: "ERC NG",
+    description: "Liga Next-Gen GT3 (Lexus, BMW, Porsche) y LMP2 (Oreca 07)",
+    colorTheme: "border-cyan-500/30 bg-cyan-950/10 text-cyan-400",
+    badgeBg: "bg-cyan-950/50 border-cyan-500/30 text-cyan-400",
+    borderColor: "border-cyan-500/20",
+    textColor: "text-cyan-400",
+    bgGlow: "bg-cyan-950/20",
+  },
+];
+
 export interface OfficialVehicle {
   id: string;
   name: string;
-  category: "GT3" | "LMP2";
+  category: "GT3" | "LMP2" | "Hypercar";
+  league: "ERC: Hypercar" | "Ferrari GT3-Hypercar" | "ERC NG";
   brand: string;
   year?: string;
   defaultDorsals?: string[];
@@ -15,10 +60,79 @@ export interface OfficialVehicle {
 }
 
 export const OFFICIAL_VEHICLES: OfficialVehicle[] = [
+  // --- ERC: Hypercar ---
+  {
+    id: "Porsche 963 LMDh | Hypercar",
+    name: "Porsche 963 LMDh (EMKA Hypercar)",
+    category: "Hypercar",
+    league: "ERC: Hypercar",
+    brand: "Porsche / EMKA",
+    defaultDorsals: ["5", "50", "963"],
+    badgeColor: "amber",
+    borderColor: "border-amber-500/20",
+    textColor: "text-amber-400",
+    bgGlow: "bg-amber-950/20",
+    badgeBg: "bg-amber-950/50 border-amber-500/30 text-amber-400",
+  },
+  {
+    id: "Hypercar | ERC",
+    name: "Hypercar (Por elegir modelo)",
+    category: "Hypercar",
+    league: "ERC: Hypercar",
+    brand: "Hypercar",
+    defaultDorsals: ["1", "50"],
+    badgeColor: "amber",
+    borderColor: "border-amber-500/20",
+    textColor: "text-amber-400",
+    bgGlow: "bg-amber-950/20",
+    badgeBg: "bg-amber-950/50 border-amber-500/30 text-amber-400",
+  },
+  // --- Ferrari GT3-Hypercar ---
+  {
+    id: "Ferrari 296 GT3",
+    name: "Ferrari 296 GT3",
+    category: "GT3",
+    league: "Ferrari GT3-Hypercar",
+    brand: "Ferrari",
+    defaultDorsals: ["29", "51"],
+    badgeColor: "red",
+    borderColor: "border-red-500/20",
+    textColor: "text-red-400",
+    bgGlow: "bg-red-950/20",
+    badgeBg: "bg-red-950/50 border-red-500/30 text-red-400",
+  },
+  {
+    id: "Ferrari 499P LMH",
+    name: "Ferrari 499P LMH (Hypercar)",
+    category: "Hypercar",
+    league: "Ferrari GT3-Hypercar",
+    brand: "Ferrari",
+    defaultDorsals: ["50", "51"],
+    badgeColor: "red",
+    borderColor: "border-red-500/20",
+    textColor: "text-red-400",
+    bgGlow: "bg-red-950/20",
+    badgeBg: "bg-red-950/50 border-red-500/30 text-red-400",
+  },
+  // --- ERC NG ---
+  {
+    id: "Oreca 07 | LMP2",
+    name: "Oreca 07 LMP2",
+    category: "LMP2",
+    league: "ERC NG",
+    brand: "Oreca",
+    defaultDorsals: ["32", "43"],
+    badgeColor: "fuchsia",
+    borderColor: "border-fuchsia-500/20",
+    textColor: "text-fuchsia-400",
+    bgGlow: "bg-fuchsia-950/20",
+    badgeBg: "bg-fuchsia-950/50 border-fuchsia-500/30 text-fuchsia-400",
+  },
   {
     id: "Lexus RC F | GT3",
     name: "Lexus RC F GT3",
     category: "GT3",
+    league: "ERC NG",
     brand: "Lexus",
     defaultDorsals: ["5", "8"],
     badgeColor: "red",
@@ -31,6 +145,7 @@ export const OFFICIAL_VEHICLES: OfficialVehicle[] = [
     id: "BMW M4 2021 | GT3",
     name: "BMW M4 GT3 2021",
     category: "GT3",
+    league: "ERC NG",
     brand: "BMW",
     year: "2021",
     defaultDorsals: ["23"],
@@ -44,6 +159,7 @@ export const OFFICIAL_VEHICLES: OfficialVehicle[] = [
     id: "Porsche 992 R 2023 | GT3",
     name: "Porsche 992 R 2023 GT3",
     category: "GT3",
+    league: "ERC NG",
     brand: "Porsche",
     year: "2023",
     defaultDorsals: ["91"],
@@ -52,18 +168,6 @@ export const OFFICIAL_VEHICLES: OfficialVehicle[] = [
     textColor: "text-emerald-400",
     bgGlow: "bg-emerald-950/20",
     badgeBg: "bg-emerald-950/50 border-emerald-500/30 text-emerald-400",
-  },
-  {
-    id: "Oreca 07 | LMP2",
-    name: "Oreca 07 LMP2",
-    category: "LMP2",
-    brand: "Oreca",
-    defaultDorsals: ["32", "43"],
-    badgeColor: "fuchsia",
-    borderColor: "border-fuchsia-500/20",
-    textColor: "text-fuchsia-400",
-    bgGlow: "bg-fuchsia-950/20",
-    badgeBg: "bg-fuchsia-950/50 border-fuchsia-500/30 text-fuchsia-400",
   },
 ];
 
@@ -376,10 +480,145 @@ export const ASSETTO_CORSA_LMP2_TEMPLATE: SetupTemplate = {
   ]
 };
 
+export const ASSETTO_CORSA_EMKA_HYPERCAR_TEMPLATE: SetupTemplate = {
+  id: "assetto-corsa-emka-hypercar",
+  title: "Assetto Corsa (HYPERCAR EMKA)",
+  description: "Plantilla oficial con soporte completo para importar/exportar archivos .ini para los HYPERCAR de EMKA (Porsche 963 LMDh).",
+  sections: [
+    {
+      id: "gears",
+      name: "Gears",
+      fields: [
+        { id: "gears_hc", name: "Gears sets", type: FieldType.SELECT, options: ["Short", "Long"], defaultValue: "Short" },
+      ]
+    },
+    {
+      id: "tyres",
+      name: "Tyres",
+      fields: [
+        { id: "compound_hc", name: "Tyres Set", type: FieldType.SELECT, options: ["Soft", "Medium", "Rain"], defaultValue: "Medium" },
+        { id: "press_lf_hc", name: "Pressure LF", type: FieldType.NUMBER, min: 19, max: 35, step: 1, unit: "psi", defaultValue: "19" },
+        { id: "press_rf_hc", name: "Pressure RF", type: FieldType.NUMBER, min: 19, max: 35, step: 1, unit: "psi", defaultValue: "35" },
+        { id: "press_lr_hc", name: "Pressure LR", type: FieldType.NUMBER, min: 19, max: 35, step: 1, unit: "psi", defaultValue: "22" },
+        { id: "press_rr_hc", name: "Pressure RR", type: FieldType.NUMBER, min: 19, max: 35, step: 1, unit: "psi", defaultValue: "35" },
+      ]
+    },
+    {
+      id: "fuel",
+      name: "Fuel",
+      fields: [
+        { id: "fuel_hc", name: "Fuel", type: FieldType.NUMBER, min: 0, max: 120, step: 1, unit: "L", defaultValue: "120" },
+      ]
+    },
+    {
+      id: "electronics",
+      name: "Electronics",
+      fields: [
+        { id: "tc_hc", name: "Traction Control", type: FieldType.NUMBER, min: 0, max: 8, step: 1, defaultValue: "8" },
+        { id: "mguk_hc", name: "MGUK-Delivery", type: FieldType.NUMBER, min: 0, max: 50, step: 10, unit: "KW", defaultValue: "50" },
+      ]
+    },
+    {
+      id: "aero",
+      name: "Aero",
+      fields: [
+        { id: "rear_wing_hc", name: "Rear Wing", type: FieldType.NUMBER, min: 1, max: 5, step: 1, unit: "°", defaultValue: "5" },
+      ]
+    },
+    {
+      id: "alignment",
+      name: "Alignment",
+      fields: [
+        { id: "camber_lf_hc", name: "Camber LF", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "-3.8" },
+        { id: "toe_lf_hc", name: "Toe LF", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "8" },
+        { id: "camber_rf_hc", name: "Camber RF", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "0" },
+        { id: "toe_rf_hc", name: "Toe RF", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "1" },
+        { id: "camber_lr_hc", name: "Camber LR", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "0.5" },
+        { id: "toe_lr_hc", name: "Toe LR", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "10" },
+        { id: "camber_rr_hc", name: "Camber RR", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "0" },
+        { id: "toe_rr_hc", name: "Toe RR", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "0" },
+      ]
+    },
+    {
+      id: "dampers",
+      name: "Dampers",
+      fields: [
+        { id: "bump_lf_hc", name: "Bump LF", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "7" },
+        { id: "fst_bump_lf_hc", name: "FST Bump LF", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "49" },
+        { id: "rebound_lf_hc", name: "Rebound LF", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "40" },
+        { id: "fst_rebound_lf_hc", name: "FST Rebound LF", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "49" },
+
+        { id: "bump_rf_hc", name: "Bump RF", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "10" },
+        { id: "fst_bump_rf_hc", name: "FST Bump RF", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "10" },
+        { id: "rebound_rf_hc", name: "Rebound RF", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "10" },
+        { id: "fst_rebound_rf_hc", name: "FST Rebound RF", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "10" },
+
+        { id: "bump_lr_hc", name: "Bump LR", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "40" },
+        { id: "fst_bump_lr_hc", name: "FST Bump LR", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "49" },
+        { id: "rebound_lr_hc", name: "Rebound LR", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "40" },
+        { id: "fst_rebound_lr_hc", name: "FST Rebound LR", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "49" },
+
+        { id: "bump_rr_hc", name: "Bump RR", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "9" },
+        { id: "fst_bump_rr_hc", name: "FST Bump RR", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "11" },
+        { id: "rebound_rr_hc", name: "Rebound RR", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "8" },
+        { id: "fst_rebound_rr_hc", name: "FST Rebound RR", type: FieldType.NUMBER, min: 0, max: 49, step: 1, defaultValue: "9" },
+      ]
+    },
+    {
+      id: "drivetrain",
+      name: "Drive train",
+      fields: [
+        { id: "diff_power_hc", name: "Diff Power", type: FieldType.NUMBER, min: 0, max: 180, step: 10, defaultValue: "160" },
+        { id: "diff_preload_hc", name: "Diff Preload", type: FieldType.NUMBER, min: 0, max: 200, step: 5, defaultValue: "190" },
+        { id: "diff_coast_hc", name: "Diff Coast", type: FieldType.NUMBER, min: 0, max: 200, step: 10, defaultValue: "190" },
+      ]
+    },
+    {
+      id: "generic",
+      name: "Generic",
+      fields: [
+        { id: "brake_bias_hc", name: "Brake Bias", type: FieldType.NUMBER, min: 40, max: 70, step: 1, unit: "%", defaultValue: "68" },
+        { id: "brake_power_hc", name: "Brake power", type: FieldType.NUMBER, min: 80, max: 100, step: 1, unit: "%", defaultValue: "99" },
+      ]
+    },
+    {
+      id: "suspension",
+      name: "Suspension",
+      fields: [
+        { id: "arb_front_hc", name: "ARB front", type: FieldType.NUMBER, min: 2, max: 30, step: 1, defaultValue: "30" },
+        { id: "wheel_rate_lf_hc", name: "Wheel rate LF", type: FieldType.NUMBER, min: 0, max: 4, step: 1, defaultValue: "0" },
+        { id: "height_lf_hc", name: "Height LF", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "38" },
+        { id: "wheel_rate_rf_hc", name: "Wheel rate RF", type: FieldType.NUMBER, min: 0, max: 4, step: 1, defaultValue: "4" },
+        { id: "height_rf_hc", name: "Height RF", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "15" },
+        { id: "wheel_rate_lr_hc", name: "Wheel rate LR", type: FieldType.NUMBER, min: 0, max: 4, step: 1, defaultValue: "0" },
+        { id: "height_lr_hc", name: "Height LR", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "20" },
+        { id: "wheel_rate_rr_hc", name: "Wheel rate RR", type: FieldType.NUMBER, min: 0, max: 4, step: 1, defaultValue: "4" },
+        { id: "height_rr_hc", name: "Height RR", type: FieldType.NUMBER, min: 0, max: 40, step: 1, defaultValue: "40" },
+        { id: "arb_rear_hc", name: "ARB Rear", type: FieldType.NUMBER, min: 2, max: 40, step: 1, defaultValue: "40" },
+      ]
+    },
+    {
+      id: "suspension_adv",
+      name: "Suspension adv.",
+      fields: [
+        { id: "packer_rate_lf_hc", name: "Packer rate LF", type: FieldType.NUMBER, min: 100, max: 200, step: 5, defaultValue: "110" },
+        { id: "travel_range_lf_hc", name: "Travel Range LF", type: FieldType.NUMBER, min: 20, max: 100, step: 1, unit: "mm", defaultValue: "100" },
+        { id: "packer_rate_rf_hc", name: "Packer rate RF", type: FieldType.NUMBER, min: 100, max: 200, step: 5, defaultValue: "200" },
+        { id: "travel_range_rf_hc", name: "Travel Range RF", type: FieldType.NUMBER, min: 20, max: 100, step: 1, unit: "mm", defaultValue: "50" },
+        { id: "packer_rate_lr_hc", name: "Packer rate LR", type: FieldType.NUMBER, min: 100, max: 200, step: 5, defaultValue: "200" },
+        { id: "travel_range_lr_hc", name: "Travel Range LR", type: FieldType.NUMBER, min: 25, max: 100, step: 1, unit: "mm", defaultValue: "100" },
+        { id: "packer_rate_rr_hc", name: "Packer rate RR", type: FieldType.NUMBER, min: 100, max: 200, step: 5, defaultValue: "200" },
+        { id: "travel_range_rr_hc", name: "Travel Range RR", type: FieldType.NUMBER, min: 25, max: 100, step: 1, unit: "mm", defaultValue: "66" },
+      ]
+    }
+  ]
+};
+
 export const DEFAULT_TEMPLATES: SetupTemplate[] = [
   LE_MANS_ULTIMATE_GT3_TEMPLATE,
   ASSETTO_CORSA_GT3_TEMPLATE,
-  ASSETTO_CORSA_LMP2_TEMPLATE
+  ASSETTO_CORSA_LMP2_TEMPLATE,
+  ASSETTO_CORSA_EMKA_HYPERCAR_TEMPLATE
 ];
 
 export const POPULAR_GAMES = [

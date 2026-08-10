@@ -107,6 +107,7 @@ export interface UserProfile {
   instagram?: string;
   appliedAt?: string;
   country?: string;
+  leagues?: string[];
   skillRating?: number;
   safetyRating?: number;
   grade?: string;
