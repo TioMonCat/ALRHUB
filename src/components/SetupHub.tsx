@@ -731,7 +731,25 @@ export default function SetupHub({
                   } rounded-xl overflow-hidden transition-all flex flex-col justify-between group relative`}
                   id={`setup-card-${setup.id}`}
                 >
-                  <div className="p-4 space-y-3 flex-1 z-10">
+                  {/* Car Image Header Watermark (spanning upper portion with fade on edges) */}
+                  {getCarImage(setup.car) && (
+                    <div className="absolute top-0 inset-x-0 h-36 overflow-hidden pointer-events-none z-0 rounded-t-xl">
+                      <img
+                        src={getCarImage(setup.car)!}
+                        alt={setup.car}
+                        className="w-full h-full object-cover object-center opacity-35 group-hover:opacity-55 group-hover:scale-105 transition-all duration-500"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                      {/* Lateral fade on left and right borders */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#0E0E10] via-transparent to-[#0E0E10] opacity-90" />
+                      {/* Top and bottom gradient fade */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-[#0E0E10]/40 via-transparent to-[#0E0E10]" />
+                    </div>
+                  )}
+
+                  <div className="p-4 space-y-3 flex-1 z-10 relative">
                     {/* Header: Favorites and status */}
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -781,13 +799,13 @@ export default function SetupHub({
 
                     {/* Middle: Title, Car and Track */}
                     <div className="cursor-pointer space-y-1.5 pt-1" onClick={() => onSelectSetup(setup.id)}>
-                      <h4 className="text-white font-bold group-hover:text-[#66FCF1] transition-colors text-sm line-clamp-1 leading-snug font-mono uppercase">
+                      <h4 className="text-white font-bold group-hover:text-[#66FCF1] transition-colors text-base line-clamp-1 leading-snug font-mono uppercase tracking-tight drop-shadow-md">
                         {setup.title}
                       </h4>
                       <div className="flex flex-wrap items-center justify-between gap-1">
-                        <p className="text-xs text-[#88888C] font-mono">{setup.car}</p>
+                        <p className="text-xs text-stone-300 font-mono font-medium drop-shadow-sm">{setup.car}</p>
                         {setup.creatorName && (
-                          <span className="text-[9.5px] text-cyan-400 bg-cyan-950/20 px-1.5 py-0.5 rounded border border-cyan-800/10 font-mono tracking-wide" title={`Creado por: ${setup.creatorName}`}>
+                          <span className="text-[9.5px] text-cyan-400 bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-800/20 font-mono tracking-wide backdrop-blur-xs" title={`Creado por: ${setup.creatorName}`}>
                             👤 {setup.creatorName}
                           </span>
                         )}

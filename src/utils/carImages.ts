@@ -14,11 +14,12 @@ export const getCarImage = (carName?: string | null): string | null => {
   if (!carName) return null;
   const c = carName.toUpperCase();
 
-  if (c.includes("LEXUS")) return "img/LEXUS_GT3.JPG";
-  if (c.includes("PORSCHE") || c.includes("992") || c.includes("911")) return "img/PORSCHE_GT3.JPG";
-  if (c.includes("BMW") || c.includes("M4")) return "img/BMW_GT3.JPG";
-  if (c.includes("LMP2") || c.includes("ORECA") || c.includes("LMP") || c.includes("07")) return "img/LMP2.JPG";
-  if (c.includes("GT3")) return "img/GT3.JPG";
+  if (c.includes("LEXUS")) return "/img/LEXUS_GT3.JPG";
+  if (c.includes("PORSCHE") || c.includes("992") || c.includes("911")) return "/img/PORSCHE_GT3.JPG";
+  if (c.includes("BMW") || c.includes("M4")) return "/img/BMW_GT3.JPG";
+  if (c.includes("LMP2") || c.includes("ORECA") || c.includes("LMP") || c.includes("07")) return "/img/LMP2.JPG";
+  if (c.includes("GT3") || c.includes("GT") || c.includes("RS") || c.includes("AC")) return "/img/GT3.JPG";
 
-  return null;
+  // Default fallback GT3 image for any car if nothing specific matched
+  return "/img/GT3.JPG";
 };

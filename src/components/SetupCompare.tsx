@@ -1,6 +1,7 @@
 import React from "react";
 import { CarSetup, SetupTemplate } from "../types";
 import { ArrowLeft, RefreshCw, Layers, Check, HelpCircle, ChevronRight, Fuel, Gauge, Eye, Zap } from "lucide-react";
+import { getCarImage } from "../utils/carImages";
 
 interface SetupCompareProps {
   setupA: CarSetup;
@@ -107,8 +108,17 @@ export default function SetupCompare({
                 Abrir editor <Eye className="w-3.5 h-3.5" />
               </button>
             </div>
-            <h4 className="text-white font-bold text-sm truncate">{setupA.title}</h4>
-            <p className="text-xs text-[#88888C] font-mono mt-0.5">{setupA.car} • {setupA.game}</p>
+            <div className="flex items-center gap-3">
+              {getCarImage(setupA.car) && (
+                <div className="w-14 h-10 shrink-0 rounded-lg overflow-hidden border border-[#2A2A2E] bg-black/60 relative">
+                  <img src={getCarImage(setupA.car)!} alt={setupA.car} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h4 className="text-white font-bold text-sm truncate">{setupA.title}</h4>
+                <p className="text-xs text-[#88888C] font-mono mt-0.5">{setupA.car} • {setupA.game}</p>
+              </div>
+            </div>
           </div>
           <div className="mt-4 grid grid-cols-2 text-[10.5px] font-mono border-t border-[#1F1F23]/80 pt-2.5 text-stone-400">
             <span>Circuito: <strong className="text-stone-200">{setupA.track}</strong></span>
@@ -130,8 +140,17 @@ export default function SetupCompare({
                 Abrir editor <Eye className="w-3.5 h-3.5" />
               </button>
             </div>
-            <h4 className="text-white font-bold text-sm truncate">{setupB.title}</h4>
-            <p className="text-xs text-[#88888C] font-mono mt-0.5">{setupB.car} • {setupB.game}</p>
+            <div className="flex items-center gap-3">
+              {getCarImage(setupB.car) && (
+                <div className="w-14 h-10 shrink-0 rounded-lg overflow-hidden border border-[#2A2A2E] bg-black/60 relative">
+                  <img src={getCarImage(setupB.car)!} alt={setupB.car} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h4 className="text-white font-bold text-sm truncate">{setupB.title}</h4>
+                <p className="text-xs text-[#88888C] font-mono mt-0.5">{setupB.car} • {setupB.game}</p>
+              </div>
+            </div>
           </div>
           <div className="mt-4 grid grid-cols-2 text-[10.5px] font-mono border-t border-[#1F1F23]/80 pt-2.5 text-stone-400">
             <span>Circuito: <strong className="text-stone-200">{setupB.track}</strong></span>

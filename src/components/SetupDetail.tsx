@@ -1020,6 +1020,9 @@ export default function SetupDetail({
         <div className="flex-1 p-6 space-y-5">
           <div className="border-b border-[#1F1F23] pb-3 flex items-center justify-between">
             <h2 className="text-sm font-black font-mono text-white flex items-center gap-2 uppercase tracking-wide">
+              {getCarImage(setup.car) && (
+                <img src={getCarImage(setup.car)!} alt={setup.car} className="w-8 h-5 object-cover rounded border border-[#2A2A2E] bg-black/60 shadow-sm" />
+              )}
               <Compass className="w-4 h-4 text-[#FF3C3C]" />
               Ficha del Piloto: <span className="text-[#66FCF1] font-bold">{setup.car}</span>
             </h2>
