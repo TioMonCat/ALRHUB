@@ -4,13 +4,7 @@ import { ArrowLeft, Save, Plus, Trash2, Info, Compass, Clock, Download, Sparkles
 import { motion, AnimatePresence } from "motion/react";
 import { exportSetupToIni } from "./ALRIniParser";
 import { SetupAiAssistantModal } from "./SetupAiAssistantModal";
-
-const getCarImage = (carName: string) => {
-  const c = carName.toUpperCase();
-  if (c.includes("GT3")) return "img/GT3.JPG";
-  if (c.includes("LMP2") || c.includes("ORECA")) return "img/LMP2.JPG";
-  return null;
-};
+import { getCarImage } from "../utils/carImages";
 
 interface ChassisVisualizerProps {
   activeSection: SetupSection;

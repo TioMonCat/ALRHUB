@@ -4,13 +4,7 @@ import { POPULAR_GAMES, POPULAR_TRACKS, DEFAULT_TEMPLATES } from "../presets";
 import { Trash2, Star, Plus, FileSpreadsheet, Download, Upload, Search, Filter, Sliders, Layers, RefreshCw, Layers3, Flame, Clock, CloudRain, Sun, CloudDrizzle, Check, File } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { parseIni, mapIniToSetupValues } from "./ALRIniParser";
-
-const getCarImage = (carName: string) => {
-  const c = carName.toUpperCase();
-  if (c.includes("GT3")) return "img/GT3.JPG";
-  if (c.includes("LMP2") || c.includes("ORECA")) return "img/LMP2.JPG";
-  return null;
-};
+import { getCarImage } from "../utils/carImages";
 
 interface SetupHubProps {
   setups: CarSetup[];
