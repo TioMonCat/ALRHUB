@@ -767,44 +767,64 @@ export default function Roster({
               <div>
                 <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-2 font-bold flex items-center gap-1.5">
                   <Car className="w-3.5 h-3.5 text-cyan-400" />
-                  Vehículos de Competición Asignados (Multi-Vehículo)
+                  Vehículos de Competición Asignados{" "}
+                  {editLeagues.length > 0 && (
+                    <span className="text-amber-400 font-normal">
+                      ({editLeagues.join(" • ")})
+                    </span>
+                  )}
                 </label>
                 <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {OFFICIAL_VEHICLES.map((veh) => {
-                    const isChecked = editVehicles.includes(veh.id);
-                    return (
-                      <label
-                        key={veh.id}
-                        onClick={() => toggleEditVehicle(veh.id)}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
-                          isChecked
-                            ? "bg-cyan-950/30 border-cyan-500/40 text-cyan-200 shadow-inner"
-                            : "bg-[#18181b] border-stone-800/80 text-stone-400 hover:border-stone-700 hover:text-stone-200"
-                        }`}
-                      >
-                        <div>
-                          <p className="text-xs font-bold font-mono uppercase text-white">
-                            {veh.name}
-                          </p>
-                          <p className="text-[10px] text-stone-500 font-mono mt-0.5">
-                            {veh.league} • Categoría: {veh.category}
-                          </p>
+                  {(() => {
+                    const availableVehicles = OFFICIAL_VEHICLES.filter((v) => {
+                      if (editLeagues.length === 0) return true;
+                      return editLeagues.includes(v.league) || editVehicles.includes(v.id);
+                    });
+
+                    if (availableVehicles.length === 0) {
+                      return (
+                        <div className="p-4 bg-stone-900/50 border border-stone-800 rounded-xl text-center text-stone-500 text-xs font-mono">
+                          Selecciona una liga arriba para habilitar sus vehículos de competición.
                         </div>
-                        <div
-                          className={`w-5 h-5 rounded border flex items-center justify-center transition-all flex-shrink-0 ${
+                      );
+                    }
+
+                    return availableVehicles.map((veh) => {
+                      const isChecked = editVehicles.includes(veh.id);
+                      return (
+                        <label
+                          key={veh.id}
+                          onClick={() => toggleEditVehicle(veh.id)}
+                          className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                             isChecked
-                              ? "bg-cyan-500 border-cyan-400 text-black"
-                              : "border-stone-700 bg-stone-900"
+                              ? "bg-cyan-950/30 border-cyan-500/40 text-cyan-200 shadow-inner"
+                              : "bg-[#18181b] border-stone-800/80 text-stone-400 hover:border-stone-700 hover:text-stone-200"
                           }`}
                         >
-                          {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                        </div>
-                      </label>
-                    );
-                  })}
+                          <div>
+                            <p className="text-xs font-bold font-mono uppercase text-white">
+                              {veh.name}
+                            </p>
+                            <p className="text-[10px] text-stone-500 font-mono mt-0.5">
+                              Liga: <span className="text-amber-400/90">{veh.league}</span> • Categoría: {veh.category}
+                            </p>
+                          </div>
+                          <div
+                            className={`w-5 h-5 rounded border flex items-center justify-center transition-all flex-shrink-0 ${
+                              isChecked
+                                ? "bg-cyan-500 border-cyan-400 text-black"
+                                : "border-stone-700 bg-stone-900"
+                            }`}
+                          >
+                            {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          </div>
+                        </label>
+                      );
+                    });
+                  })()}
                 </div>
                 <p className="text-[10px] text-stone-500 font-mono mt-1.5">
-                  Puedes seleccionar múltiples vehículos si el piloto compite con diferentes coches en cada liga.
+                  Los vehículos se filtran según las ligas seleccionadas arriba. Puedes marcar múltiples vehículos si participas con diferentes coches.
                 </p>
               </div>
 
