@@ -529,14 +529,14 @@ export const ASSETTO_CORSA_EMKA_HYPERCAR_TEMPLATE: SetupTemplate = {
       id: "alignment",
       name: "Alignment",
       fields: [
-        { id: "camber_lf_hc", name: "Camber LF", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "-3.8" },
-        { id: "toe_lf_hc", name: "Toe LF", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "8" },
-        { id: "camber_rf_hc", name: "Camber RF", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "0" },
-        { id: "toe_rf_hc", name: "Toe RF", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "1" },
-        { id: "camber_lr_hc", name: "Camber LR", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "0.5" },
-        { id: "toe_lr_hc", name: "Toe LR", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "10" },
-        { id: "camber_rr_hc", name: "Camber RR", type: FieldType.NUMBER, min: -4.0, max: 0, step: 0.1, unit: "°", defaultValue: "0" },
-        { id: "toe_rr_hc", name: "Toe RR", type: FieldType.NUMBER, min: -10, max: 10, step: 1, defaultValue: "0" },
+        { id: "camber_lf_hc", name: "Camber LF", type: FieldType.NUMBER, min: -5.0, max: 5.0, step: 0.1, unit: "°", defaultValue: "-3.8" },
+        { id: "toe_lf_hc", name: "Toe LF", type: FieldType.NUMBER, min: -20, max: 20, step: 1, defaultValue: "8" },
+        { id: "camber_rf_hc", name: "Camber RF", type: FieldType.NUMBER, min: -5.0, max: 5.0, step: 0.1, unit: "°", defaultValue: "0" },
+        { id: "toe_rf_hc", name: "Toe RF", type: FieldType.NUMBER, min: -20, max: 20, step: 1, defaultValue: "1" },
+        { id: "camber_lr_hc", name: "Camber LR", type: FieldType.NUMBER, min: -5.0, max: 5.0, step: 0.1, unit: "°", defaultValue: "0.5" },
+        { id: "toe_lr_hc", name: "Toe LR", type: FieldType.NUMBER, min: -20, max: 20, step: 1, defaultValue: "10" },
+        { id: "camber_rr_hc", name: "Camber RR", type: FieldType.NUMBER, min: -5.0, max: 5.0, step: 0.1, unit: "°", defaultValue: "0" },
+        { id: "toe_rr_hc", name: "Toe RR", type: FieldType.NUMBER, min: -20, max: 20, step: 1, defaultValue: "0" },
       ]
     },
     {

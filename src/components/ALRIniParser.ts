@@ -337,7 +337,7 @@ export function mapIniToSetupValues(
     sec.fields.forEach(f => {
       // If we didn't populate this field yet or it's default
       if (result[f.id] === f.defaultValue || !result[f.id]) {
-        const normFieldId = f.id.toUpperCase().replace(/_LMP$/, ""); 
+        const normFieldId = f.id.toUpperCase().replace(/_LMP$/, "").replace(/_HC$/, ""); 
         
         for (const sName of Object.keys(rawValues)) {
           const normSection = sName.toUpperCase();

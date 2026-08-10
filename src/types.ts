@@ -108,6 +108,8 @@ export interface UserProfile {
   appliedAt?: string;
   country?: string;
   leagues?: string[];
+  assignedVehicles?: string[];
+  vehicles?: string[];
   skillRating?: number;
   safetyRating?: number;
   grade?: string;

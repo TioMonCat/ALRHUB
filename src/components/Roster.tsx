@@ -45,7 +45,7 @@ export default function Roster({
   // State for vehicle / dorsal / leagues assignment edit modal
   const [editingPilot, setEditingPilot] = useState<UserProfile | null>(null);
   const [editLeagues, setEditLeagues] = useState<string[]>([]);
-  const [editCarPref, setEditCarPref] = useState<string>("");
+  const [editVehicles, setEditVehicles] = useState<string[]>([]);
   const [editRaceNumber, setEditRaceNumber] = useState<string>("");
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -65,15 +65,33 @@ export default function Roster({
     if (pref.includes("Ferrari") || pref.includes("296") || pref.includes("499P")) {
       return ["Ferrari GT3-Hypercar"];
     }
-    if (pref.includes("Hypercar")) {
+    if (pref.includes("Hypercar") || pref.includes("963") || pref.includes("EMKA")) {
       return ["ERC: Hypercar"];
     }
     return ["ERC NG"];
   };
 
-  // Helper to resolve which vehicle a pilot belongs to
+  // Helper to resolve which vehicles a pilot belongs to
+  const getPilotVehicles = (pilot: UserProfile): string[] => {
+    if (pilot.assignedVehicles && pilot.assignedVehicles.length > 0) {
+      return pilot.assignedVehicles;
+    }
+    if (pilot.vehicles && pilot.vehicles.length > 0) {
+      return pilot.vehicles;
+    }
+    const pref = pilot.carPreference || "";
+    if (pref.includes(",")) {
+      const parts = pref.split(",").map((s) => s.trim()).filter(Boolean);
+      if (parts.length > 0) return parts;
+    }
+    return [getPilotVehicle(pilot)];
+  };
+
+  // Helper to resolve single default vehicle string
   const getPilotVehicle = (pilot: UserProfile): string => {
     const pref = pilot.carPreference || "";
+    if (pref.includes("963") || pref.includes("EMKA") || pref.includes("Porsche 963"))
+      return "Porsche 963 LMDh | Hypercar";
     if (pref.includes("296")) return "Ferrari 296 GT3";
     if (pref.includes("499P")) return "Ferrari 499P LMH";
     if (pref.includes("Hypercar")) return "Hypercar | ERC";
@@ -129,7 +147,7 @@ export default function Roster({
     e.stopPropagation();
     setEditingPilot(pilot);
     setEditLeagues(getPilotLeagues(pilot));
-    setEditCarPref(pilot.carPreference || getPilotVehicle(pilot));
+    setEditVehicles(getPilotVehicles(pilot));
     setEditRaceNumber(pilot.raceNumber || "");
     setSaveError(null);
   };
@@ -144,6 +162,15 @@ export default function Roster({
     }
   };
 
+  // Toggle vehicle in edit modal
+  const toggleEditVehicle = (vehId: string) => {
+    if (editVehicles.includes(vehId)) {
+      setEditVehicles(editVehicles.filter((v) => v !== vehId));
+    } else {
+      setEditVehicles([...editVehicles, vehId]);
+    }
+  };
+
   // Save updated vehicle, leagues, and dorsal assignment to Firestore
   const handleSaveAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,13 +182,17 @@ export default function Roster({
       const userRef = doc(db, "users", editingPilot.uid);
       await updateDoc(userRef, {
         leagues: editLeagues,
-        carPreference: editCarPref,
+        assignedVehicles: editVehicles,
+        vehicles: editVehicles,
+        carPreference: editVehicles.join(", ") || "Banca",
         raceNumber: editRaceNumber,
       });
 
       // Update in-memory reference
       editingPilot.leagues = editLeagues;
-      editingPilot.carPreference = editCarPref;
+      editingPilot.assignedVehicles = editVehicles;
+      editingPilot.vehicles = editVehicles;
+      editingPilot.carPreference = editVehicles.join(", ") || "Banca";
       editingPilot.raceNumber = editRaceNumber;
 
       setEditingPilot(null);
@@ -464,7 +495,7 @@ export default function Roster({
                 <div className="space-y-8">
                   {leagueVehicles.map((veh) => {
                     const vehPilots = totalLeaguePilots.filter(
-                      (p) => getPilotVehicle(p) === veh.id
+                      (p) => getPilotVehicles(p).includes(veh.id)
                     );
 
                     // Helper to normalize dorsal numbers (e.g. "05" -> "5", "08" -> "8")
@@ -599,7 +630,14 @@ export default function Roster({
           {/* General Box for Reserves / Banca */}
           {(() => {
             const reservePilots = filteredPilots
-              .filter((p) => getPilotVehicle(p) === "Reserva")
+              .filter((p) => {
+                const vList = getPilotVehicles(p);
+                return (
+                  vList.length === 0 ||
+                  vList.includes("Reserva") ||
+                  vList.includes("Banca")
+                );
+              })
               .sort((a, b) => {
                 const numA = parseInt(a.raceNumber || "999", 10);
                 const numB = parseInt(b.raceNumber || "999", 10);
@@ -725,62 +763,73 @@ export default function Roster({
                 </p>
               </div>
 
-              {/* Vehicle Selection */}
+              {/* Vehicle Selection (Multi-select) */}
               <div>
-                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold flex items-center gap-1.5">
+                <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-2 font-bold flex items-center gap-1.5">
                   <Car className="w-3.5 h-3.5 text-cyan-400" />
-                  Vehículo de Competición
+                  Vehículos de Competición Asignados (Multi-Vehículo)
                 </label>
-                <select
-                  required
-                  value={editCarPref}
-                  onChange={(e) => {
-                    const newVehId = e.target.value;
-                    setEditCarPref(newVehId);
-                    const foundVeh = OFFICIAL_VEHICLES.find((v) => v.id === newVehId);
-                    if (foundVeh && foundVeh.defaultDorsals && foundVeh.defaultDorsals.length > 0) {
-                      if (!foundVeh.defaultDorsals.includes(editRaceNumber)) {
-                        setEditRaceNumber(foundVeh.defaultDorsals[0]);
-                      }
-                    } else {
-                      setEditRaceNumber("--");
-                    }
-                  }}
-                  className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
-                >
-                  <option value="">-- Sin Vehículo (Banca de Reserva) --</option>
-                  {OFFICIAL_VEHICLES.map((veh) => (
-                    <option key={veh.id} value={veh.id}>
-                      [{veh.league}] {veh.name} ({veh.category})
-                    </option>
-                  ))}
-                  <option value="Banca">Banca / Sin Asiento</option>
-                </select>
-                <p className="text-[10px] text-stone-500 font-mono mt-1">
-                  El corredor se agrupará dinámicamente en su vehículo y liga correspondientes.
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {OFFICIAL_VEHICLES.map((veh) => {
+                    const isChecked = editVehicles.includes(veh.id);
+                    return (
+                      <label
+                        key={veh.id}
+                        onClick={() => toggleEditVehicle(veh.id)}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          isChecked
+                            ? "bg-cyan-950/30 border-cyan-500/40 text-cyan-200 shadow-inner"
+                            : "bg-[#18181b] border-stone-800/80 text-stone-400 hover:border-stone-700 hover:text-stone-200"
+                        }`}
+                      >
+                        <div>
+                          <p className="text-xs font-bold font-mono uppercase text-white">
+                            {veh.name}
+                          </p>
+                          <p className="text-[10px] text-stone-500 font-mono mt-0.5">
+                            {veh.league} • Categoría: {veh.category}
+                          </p>
+                        </div>
+                        <div
+                          className={`w-5 h-5 rounded border flex items-center justify-center transition-all flex-shrink-0 ${
+                            isChecked
+                              ? "bg-cyan-500 border-cyan-400 text-black"
+                              : "border-stone-700 bg-stone-900"
+                          }`}
+                        >
+                          {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-stone-500 font-mono mt-1.5">
+                  Puedes seleccionar múltiples vehículos si el piloto compite con diferentes coches en cada liga.
                 </p>
               </div>
 
               {/* Dorsal Selection */}
               {(() => {
-                const selectedVeh = OFFICIAL_VEHICLES.find((v) => v.id === editCarPref);
-                const defaultDorsals = selectedVeh?.defaultDorsals || [];
+                const selectedVehs = OFFICIAL_VEHICLES.filter((v) => editVehicles.includes(v.id));
+                const allDefaultDorsals = Array.from(
+                  new Set(selectedVehs.flatMap((v) => v.defaultDorsals || []))
+                );
 
-                if (selectedVeh && defaultDorsals.length > 0) {
+                if (allDefaultDorsals.length > 0) {
                   return (
                     <div>
                       <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
-                        Seleccionar Dorsal de {selectedVeh.brand}
+                        Seleccionar Dorsal Oficial
                       </label>
                       <div className="grid grid-cols-2 gap-2 mb-2">
-                        {defaultDorsals.map((dorsal) => {
+                        {allDefaultDorsals.map((dorsal) => {
                           const isSelected = editRaceNumber === dorsal;
                           return (
                             <button
                               key={dorsal}
                               type="button"
                               onClick={() => setEditRaceNumber(dorsal)}
-                              className={`p-3 rounded-xl border text-xs font-mono font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              className={`p-2.5 rounded-xl border text-xs font-mono font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                                 isSelected
                                   ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
                                   : "bg-[#18181b] border-stone-800 text-stone-400 hover:border-stone-700 hover:text-white"
