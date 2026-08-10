@@ -79,6 +79,11 @@ export const IngenieroChat: React.FC<IngenieroChatProps> = ({
       timestamp: userTimestamp,
     };
 
+    const chatHistory = messages.map((m) => ({
+      sender: m.sender,
+      text: m.text,
+    }));
+
     setMessages((prev) => [...prev, userMessage]);
     if (!overrideText) setInput("");
     setIsLoading(true);
@@ -86,7 +91,8 @@ export const IngenieroChat: React.FC<IngenieroChatProps> = ({
     try {
       const respuestaIngeniero = await consultarIngenieroALR(
         textToSend,
-        setupsDesdeFirebase
+        setupsDesdeFirebase,
+        chatHistory
       );
 
       const ingenieroMessage: Message = {
@@ -163,16 +169,7 @@ export const IngenieroChat: React.FC<IngenieroChatProps> = ({
         </div>
 
         <div className="flex items-center space-x-2 text-xs text-zinc-400 font-mono">
-          <button
-            type="button"
-            onClick={() => setIsApiKeyModalOpen(true)}
-            title="Configurar Gemini API Key para GitHub / Sitios Estáticos"
-            className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-700/80 text-zinc-300 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <Key className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline font-bold">API Key</span>
-          </button>
-          <div className="hidden sm:flex px-2.5 py-1 bg-zinc-900 rounded border border-zinc-800 items-center gap-1.5">
+          <div className="flex px-2.5 py-1 bg-zinc-900 rounded border border-zinc-800 items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
             <span>PIT WALL ONLINE</span>
           </div>
@@ -248,19 +245,9 @@ export const IngenieroChat: React.FC<IngenieroChatProps> = ({
 
         {/* MENSAJE DE ERROR */}
         {error && (
-          <div className="p-3 bg-red-950/50 border border-red-500/40 rounded-xl text-red-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsApiKeyModalOpen(true)}
-              className="px-3 py-1 bg-red-900/60 hover:bg-red-800 border border-red-500/50 text-white rounded-lg text-xs font-bold font-mono transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-            >
-              <Key className="w-3.5 h-3.5 text-emerald-400" />
-              Configurar API Key
-            </button>
+          <div className="p-3 bg-red-950/50 border border-red-500/40 rounded-xl text-red-300 text-xs flex items-center gap-2 font-mono">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 

@@ -24,6 +24,11 @@ import {
   Sliders,
   Terminal,
   Key,
+  Camera,
+  Upload,
+  Thermometer,
+  Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -34,6 +39,9 @@ export interface SetupAiMessage {
   suggestedChanges?: Record<string, string>;
   applied?: boolean;
   timestamp: string;
+  trackTemp?: string;
+  ambientTemp?: string;
+  imageThumbnail?: string;
 }
 
 interface SetupAiAssistantModalProps {
@@ -62,7 +70,55 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
   const [appliedCount, setAppliedCount] = useState(0);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
+  // Estados obligatorios de telemetría y entorno
+  const [trackTemp, setTrackTemp] = useState("32");
+  const [ambientTemp, setAmbientTemp] = useState("24");
+  const [telemetryImage, setTelemetryImage] = useState<string | null>(null);
+  const [telemetryMime, setTelemetryMime] = useState("image/jpeg");
+  const [imageFileName, setImageFileName] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper para procesar archivos de imagen
+  const processImageFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setError("Por favor, selecciona un archivo de imagen válido (PNG, JPG, WEBP).");
+      return;
+    }
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (result) {
+        setTelemetryImage(result);
+        setTelemetryMime(file.type || "image/jpeg");
+        setImageFileName(file.name || "captura_telemetria.png");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Escuchar Pegar desde el Portapapeles (Ctrl + V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!isOpen) return;
+      const items = e.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            const blob = items[i].getAsFile();
+            if (blob) {
+              processImageFile(blob);
+              break;
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [isOpen]);
 
   // Helper para traducir IDs de campo a nombres legibles
   const getFieldName = (fieldId: string): string => {
@@ -107,9 +163,7 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
       const welcome: SetupAiMessage = {
         id: "setup-welcome",
         sender: "ingeniero",
-        text: `🏎️ **Box, box, piloto.** He cargado el setup **${setup.title}** para el **${setup.car}** en **${setup.track}**.\n\nTengo acceso en tiempo real a tus ${
-          Object.keys(currentValues).length
-        } parámetros de reglaje (muelles, barras, caídas, presiones, aerodinámica y diferencial).\n\n¿Qué comportamiento dinámico quieres corregir o qué mejora buscas en este reglaje?`,
+        text: `🏎️ **Box, box, piloto.** He cargado el setup **${setup.title}** para el **${setup.car}** en **${setup.track}**.\n\n⚠️ **REQUISITOS PREVIOS OBLIGATORIOS:**\nPara que pueda hacer un análisis óptimo de desgaste IMO, presiones y balance aerodinámico en tiempo real, **debes confirmar la captura del estado de tu coche/telemetría y las temperaturas del circuito y ambiente arriba**.\n\n¿Qué comportamiento dinámico quieres corregir o mejorar?`,
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -129,6 +183,16 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
     const textToSend = (overrideText || input).trim();
     if (!textToSend || isLoading) return;
 
+    // VALIDACIÓN OBLIGATORIA
+    if (!telemetryImage) {
+      setError("⚠️ OBLIGATORIO: Debes adjuntar una foto o captura del estado actual del coche o telemetría para que el Ingeniero ALR pueda analizar presiones y desgaste.");
+      return;
+    }
+    if (!trackTemp.trim() || !ambientTemp.trim()) {
+      setError("⚠️ OBLIGATORIO: Debes indicar la Temperatura de Pista y la Temperatura Ambiente en °C.");
+      return;
+    }
+
     setError(null);
     const userTimestamp = new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -140,7 +204,15 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
       sender: "user",
       text: textToSend,
       timestamp: userTimestamp,
+      trackTemp,
+      ambientTemp,
+      imageThumbnail: telemetryImage,
     };
+
+    const chatHistory = messages.map((m) => ({
+      sender: m.sender,
+      text: m.text,
+    }));
 
     setMessages((prev) => [...prev, userMessage]);
     if (!overrideText) setInput("");
@@ -155,6 +227,13 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
         currentValues,
         fieldsSummary: buildFieldsSummary(),
         userQuery: textToSend,
+        trackTemp,
+        ambientTemp,
+        image: {
+          data: telemetryImage,
+          mimeType: telemetryMime,
+        },
+        chatHistory,
       });
 
       const hasSuggested =
@@ -222,9 +301,9 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-4xl h-[92vh] sm:h-[85vh] bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+      <div className="w-full max-w-4xl h-[94vh] sm:h-[88vh] bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
         {/* MODAL HEADER */}
-        <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black px-4 sm:px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black px-4 sm:px-6 py-3.5 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
               <Cpu className="w-6 h-6 animate-pulse" />
@@ -232,7 +311,7 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-white font-black text-sm sm:text-base tracking-wide uppercase flex items-center gap-2">
-                  Ingeniero ALR — Ajuste en Tiempo Real
+                  Ingeniero ALR — Telemetría & Setup IA
                 </h3>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
@@ -257,14 +336,6 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setIsApiKeyModalOpen(true)}
-              title="Configurar Gemini API Key"
-              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 px-2.5 py-1.5 rounded-lg font-mono transition-all cursor-pointer"
-            >
-              <Key className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">API Key</span>
-            </button>
-            <button
               onClick={handleExportIni}
               title="Exportar archivo .ini actualizado"
               className="flex items-center gap-1.5 text-xs text-black bg-cyan-400 hover:bg-cyan-300 px-3 py-1.5 rounded-lg font-bold font-mono transition-all cursor-pointer"
@@ -278,6 +349,139 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+
+        {/* PANEL DE DATOS OBLIGATORIOS (TELEMETRÍA Y TEMPERATURAS) */}
+        <div className="bg-zinc-950/90 border-b border-zinc-800 p-3 sm:p-4">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            {/* Campos de Temperatura */}
+            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl p-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
+                <Thermometer className="w-4 h-4" />
+              </div>
+              
+              <div className="flex items-center gap-3 font-mono text-xs">
+                <div>
+                  <label className="block text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+                    Temp. Pista *
+                  </label>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <input
+                      type="number"
+                      value={trackTemp}
+                      onChange={(e) => setTrackTemp(e.target.value)}
+                      placeholder="Ej: 32"
+                      className="w-14 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-white font-bold text-xs text-center focus:outline-none focus:border-amber-400"
+                    />
+                    <span className="text-zinc-500 text-[10px]">°C</span>
+                  </div>
+                </div>
+
+                <span className="text-zinc-700 font-bold">|</span>
+
+                <div>
+                  <label className="block text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+                    Temp. Ambiente *
+                  </label>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <input
+                      type="number"
+                      value={ambientTemp}
+                      onChange={(e) => setAmbientTemp(e.target.value)}
+                      placeholder="Ej: 24"
+                      className="w-14 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-white font-bold text-xs text-center focus:outline-none focus:border-amber-400"
+                    />
+                    <span className="text-zinc-500 text-[10px]">°C</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Subida Obligatoria de Foto / Captura */}
+            <div className="flex-1 min-w-0">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    processImageFile(e.target.files[0]);
+                  }
+                }}
+                className="hidden"
+              />
+
+              {telemetryImage ? (
+                <div className="flex items-center justify-between bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={telemetryImage}
+                      alt="Telemetría"
+                      className="w-10 h-10 object-cover rounded-lg border border-emerald-500/50 flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono text-emerald-400 uppercase tracking-wider">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Captura Telemetría Lista
+                      </span>
+                      <p className="text-xs text-zinc-300 font-mono truncate max-w-[200px] sm:max-w-[300px]">
+                        {imageFileName || "captura_estado.png"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-[11px] font-mono font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Cambiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTelemetryImage(null);
+                        setImageFileName(null);
+                      }}
+                      title="Quitar imagen"
+                      className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-500/40 text-red-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full bg-zinc-900 hover:bg-zinc-800 border-2 border-dashed border-red-500/40 hover:border-emerald-400/60 rounded-xl p-2.5 flex items-center justify-between gap-3 text-left transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 group-hover:text-emerald-400 group-hover:border-emerald-500/40 transition-colors flex-shrink-0">
+                      <Camera className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold font-mono text-red-400 group-hover:text-emerald-300 uppercase tracking-wider">
+                          Foto / Captura Coche *
+                        </span>
+                        <span className="text-[9px] bg-red-950 border border-red-500/40 text-red-300 px-1.5 py-0.2 rounded font-mono font-bold">
+                          OBLIGATORIO
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 font-mono truncate">
+                        Haz clic, arrastra o pega (Ctrl+V) captura de neumáticos/HUD
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs font-mono font-bold text-zinc-400 group-hover:text-white flex-shrink-0">
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Subir Captura</span>
+                  </div>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -317,6 +521,27 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
                   </span>
                   <span>{msg.timestamp}</span>
                 </div>
+
+                {/* Mostrar Muestra de Foto/Captura y Clima en Mensaje de Usuario */}
+                {msg.sender === "user" && (
+                  <div className="mb-3 p-2 bg-black/60 rounded-xl border border-zinc-800 space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                      <span className="flex items-center gap-1 text-amber-400 font-bold">
+                        <Thermometer className="w-3 h-3" /> Pista: {msg.trackTemp}°C | Amb: {msg.ambientTemp}°C
+                      </span>
+                      <span className="text-emerald-400 flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3" /> Telemetría
+                      </span>
+                    </div>
+                    {msg.imageThumbnail && (
+                      <img
+                        src={msg.imageThumbnail}
+                        alt="Captura adjunta"
+                        className="max-h-36 w-full object-cover rounded-lg border border-zinc-700/60"
+                      />
+                    )}
+                  </div>
+                )}
 
                 {msg.sender === "ingeniero" ? (
                   <div className="prose prose-invert max-w-none text-zinc-200 leading-relaxed text-xs sm:text-sm space-y-2">
@@ -405,50 +630,23 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
               <div className="bg-zinc-900/90 border border-emerald-500/30 text-emerald-400 rounded-2xl rounded-tl-none p-4 text-xs sm:text-sm flex items-center gap-3 shadow-lg">
                 <Activity className="w-4 h-4 animate-pulse text-emerald-400" />
                 <span className="font-mono tracking-wide text-zinc-300 animate-pulse">
-                  Analizando chasis, aerodinámica y calculando ajustes...
+                  Analizando captura de telemetría, presiones a {trackTemp}°C y chasis...
                 </span>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="p-3.5 bg-red-950/50 border border-red-500/40 rounded-xl text-red-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsApiKeyModalOpen(true)}
-                className="px-3 py-1 bg-red-900/60 hover:bg-red-800 border border-red-500/50 text-white rounded-lg text-xs font-bold font-mono transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <Key className="w-3.5 h-3.5 text-emerald-400" />
-                Configurar API Key
-              </button>
+            <div className="p-3.5 bg-red-950/50 border border-red-500/40 rounded-xl text-red-300 text-xs flex items-center gap-2 font-mono">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* QUICK PROMPTS CHIPS */}
-        <div className="px-4 py-2 bg-zinc-950 border-t border-zinc-900 overflow-x-auto flex items-center gap-2 no-scrollbar">
-          <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider whitespace-nowrap flex items-center gap-1">
-            <Terminal className="w-3 h-3 text-emerald-400" /> Ajustes Frecuentes:
-          </span>
-          {quickPrompts.map((promptText, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => handleSend(promptText)}
-              disabled={isLoading}
-              className="text-[11px] bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-emerald-500/40 px-3 py-1 rounded-full whitespace-nowrap transition-colors flex items-center gap-1 font-mono disabled:opacity-50"
-            >
-              <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
-              {promptText}
-            </button>
-          ))}
-        </div>
+
 
         {/* INPUT & SEND */}
         <div className="p-3 sm:p-4 bg-zinc-900 border-t border-zinc-800 flex items-center gap-2">
