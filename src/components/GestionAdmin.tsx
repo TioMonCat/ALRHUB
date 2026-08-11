@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { UserProfile } from "../types";
-import { Settings, Shield, User, Hash, Save, ShieldCheck, UserX, ToggleLeft, RefreshCw, AlertTriangle } from "lucide-react";
+import { Settings, Shield, User, Hash, Save, ShieldCheck, UserX, ToggleLeft, RefreshCw, AlertTriangle, MessageSquare, Send, Check } from "lucide-react";
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { doc, updateDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { COUNTRIES } from "../presets";
+import { getDiscordWebhookUrl, saveDiscordWebhookUrl, sendTestWebhookNotification } from "../services/discordService";
 
 interface GestionAdminProps {
   users: UserProfile[];
@@ -27,6 +28,45 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isResettingStats, setIsResettingStats] = useState(false);
+
+  const [discordWebhook, setDiscordWebhook] = useState("");
+  const [isSavingDiscord, setIsSavingDiscord] = useState(false);
+  const [isTestingDiscord, setIsTestingDiscord] = useState(false);
+
+  useEffect(() => {
+    getDiscordWebhookUrl().then((url) => setDiscordWebhook(url));
+  }, []);
+
+  const handleSaveDiscord = async () => {
+    setIsSavingDiscord(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      await saveDiscordWebhookUrl(discordWebhook);
+      setSuccessMsg("URL de Webhook de Discord guardada correctamente para los avisos de 24h.");
+    } catch (err) {
+      setErrorMsg("Error al guardar la URL de Webhook de Discord.");
+    } finally {
+      setIsSavingDiscord(false);
+    }
+  };
+
+  const handleTestDiscord = async () => {
+    if (!discordWebhook) {
+      setErrorMsg("Por favor ingresa una URL de Webhook de Discord válida.");
+      return;
+    }
+    setIsTestingDiscord(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    const res = await sendTestWebhookNotification(discordWebhook);
+    setIsTestingDiscord(false);
+    if (res.success) {
+      setSuccessMsg("¡Notificación de prueba enviada con éxito a tu canal de Discord!");
+    } else {
+      setErrorMsg(res.error || "No se pudo conectar con Discord.");
+    }
+  };
 
   const handleResetAllStats = async () => {
     if (dbReadOnly) {
