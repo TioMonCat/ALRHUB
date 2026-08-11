@@ -40,7 +40,7 @@ export default function Roster({
   currentUserProfile,
 }: RosterProps) {
   const [filterSimulator, setFilterSimulator] = useState<string>("Todos");
-  const [filterLeague, setFilterLeague] = useState<string>(OFFICIAL_LEAGUES[0]?.name || "ERC: Hypercar");
+  const [filterLeague, setFilterLeague] = useState<string>("Todas las Ligas");
 
   // State for vehicle / dorsal / leagues assignment edit modal
   const [editingPilot, setEditingPilot] = useState<UserProfile | null>(null);
@@ -128,7 +128,7 @@ export default function Roster({
   const simulators = ["Todos", "Assetto Corsa", "Le Mans Ultimate"];
 
   // Leagues list for filtering
-  const leagueFilterOptions = OFFICIAL_LEAGUES.map((l) => l.name);
+  const leagueFilterOptions = ["Todas las Ligas", ...OFFICIAL_LEAGUES.map((l) => l.name)];
 
   // Filter pilots by simulator
   const filterByGame = (list: UserProfile[]) => {
@@ -146,29 +146,83 @@ export default function Roster({
   const openEditModal = (pilot: UserProfile, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingPilot(pilot);
-    setEditLeagues(getPilotLeagues(pilot));
-    setEditVehicles(getPilotVehicles(pilot));
+    const pLeagues = getPilotLeagues(pilot);
+    const pVehicles = getPilotVehicles(pilot);
+
+    setEditLeagues(pLeagues);
+
+    // Prune vehicles to only keep those matching pLeagues
+    const validVehicles = pVehicles.filter((vId) => {
+      const found = OFFICIAL_VEHICLES.find((v) => v.id === vId);
+      return !found || pLeagues.includes(found.league);
+    });
+    setEditVehicles(validVehicles);
     setEditRaceNumber(pilot.raceNumber || "");
     setSaveError(null);
   };
 
   // Toggle league in edit modal
   const toggleEditLeague = (leagueName: string) => {
+    let nextLeagues: string[];
     if (editLeagues.includes(leagueName)) {
       if (editLeagues.length === 1) return; // Must keep at least one league
-      setEditLeagues(editLeagues.filter((l) => l !== leagueName));
+      nextLeagues = editLeagues.filter((l) => l !== leagueName);
     } else {
-      setEditLeagues([...editLeagues, leagueName]);
+      nextLeagues = [...editLeagues, leagueName];
     }
+    setEditLeagues(nextLeagues);
+
+    // Automatically remove vehicles that don't belong to any of nextLeagues
+    const prunedVehicles = editVehicles.filter((vehId) => {
+      const found = OFFICIAL_VEHICLES.find((v) => v.id === vehId);
+      return found && nextLeagues.includes(found.league);
+    });
+    setEditVehicles(prunedVehicles);
+
+    // Also prune dorsals
+    const selectedVehs = OFFICIAL_VEHICLES.filter((v) => prunedVehicles.includes(v.id));
+    const sourceVehs =
+      selectedVehs.length > 0
+        ? selectedVehs
+        : OFFICIAL_VEHICLES.filter((v) => nextLeagues.includes(v.league));
+
+    const validDorsals = Array.from(
+      new Set(sourceVehs.flatMap((v) => v.defaultDorsals || []))
+    );
+    const currentDorsals = (editRaceNumber || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const prunedDorsals = currentDorsals.filter((d) => validDorsals.includes(d));
+    setEditRaceNumber(prunedDorsals.join(", "));
   };
 
   // Toggle vehicle in edit modal
   const toggleEditVehicle = (vehId: string) => {
+    let nextVehicles: string[];
     if (editVehicles.includes(vehId)) {
-      setEditVehicles(editVehicles.filter((v) => v !== vehId));
+      nextVehicles = editVehicles.filter((v) => v !== vehId);
     } else {
-      setEditVehicles([...editVehicles, vehId]);
+      nextVehicles = [...editVehicles, vehId];
     }
+    setEditVehicles(nextVehicles);
+
+    // Prune dorsals according to nextVehicles
+    const selectedVehs = OFFICIAL_VEHICLES.filter((v) => nextVehicles.includes(v.id));
+    const sourceVehs =
+      selectedVehs.length > 0
+        ? selectedVehs
+        : OFFICIAL_VEHICLES.filter((v) => editLeagues.includes(v.league));
+
+    const validDorsals = Array.from(
+      new Set(sourceVehs.flatMap((v) => v.defaultDorsals || []))
+    );
+    const currentDorsals = (editRaceNumber || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const prunedDorsals = currentDorsals.filter((d) => validDorsals.includes(d));
+    setEditRaceNumber(prunedDorsals.join(", "));
   };
 
   // Save updated vehicle, leagues, and dorsal assignment to Firestore
@@ -363,7 +417,10 @@ export default function Roster({
   };
 
   // Filter leagues to render
-  const visibleLeagues = OFFICIAL_LEAGUES.filter((lg) => lg.name === filterLeague);
+  const visibleLeagues =
+    filterLeague === "Todas las Ligas"
+      ? OFFICIAL_LEAGUES
+      : OFFICIAL_LEAGUES.filter((lg) => lg.name === filterLeague);
 
   return (
     <div className="space-y-8">
@@ -507,13 +564,15 @@ export default function Roster({
 
                     // Dynamically build all distinct dorsals for this vehicle
                     const defaultDorsals = (veh.defaultDorsals || []).map(normalizeDorsal);
-                    const customDorsals = vehPilots
-                      .map((p) => normalizeDorsal(p.raceNumber))
-                      .filter(Boolean);
-
-                    const allDorsals = Array.from(
-                      new Set([...defaultDorsals, ...customDorsals])
-                    ).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+                    const allDorsals = defaultDorsals.length > 0
+                      ? Array.from(new Set(defaultDorsals)).sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                      : Array.from(
+                          new Set(
+                            vehPilots
+                              .flatMap((p) => (p.raceNumber || "").split(",").map((s) => normalizeDorsal(s)))
+                              .filter(Boolean)
+                          )
+                        ).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
 
                     // Unassigned pilots for this vehicle
                     const unassignedPilots = vehPilots.filter(
@@ -559,9 +618,13 @@ export default function Roster({
                         {/* Grid of Dynamic Dorsals for this Vehicle */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                           {allDorsals.map((dorsalNum) => {
-                            const dorsalPilots = vehPilots.filter(
-                              (p) => normalizeDorsal(p.raceNumber) === dorsalNum
-                            );
+                            const dorsalPilots = vehPilots.filter((p) => {
+                              const pDorsals = (p.raceNumber || "")
+                                .split(",")
+                                .map((s) => normalizeDorsal(s))
+                                .filter(Boolean);
+                              return pDorsals.includes(dorsalNum);
+                            });
 
                             return (
                               <div
@@ -629,14 +692,32 @@ export default function Roster({
 
           {/* General Box for Reserves / Banca */}
           {(() => {
+            const isFilteredByLeague = filterLeague !== "Todas las Ligas";
+
             const reservePilots = filteredPilots
               .filter((p) => {
-                const vList = getPilotVehicles(p);
-                return (
-                  vList.length === 0 ||
-                  vList.includes("Reserva") ||
-                  vList.includes("Banca")
-                );
+                if (isFilteredByLeague) {
+                  // If filtering by a specific league, drivers who are NOT in this league OR don't have a vehicle in this league go to Reserve!
+                  const pLeagues = getPilotLeagues(p);
+                  if (!pLeagues.includes(filterLeague)) return true;
+
+                  const vList = getPilotVehicles(p);
+                  const leagueVehicles = OFFICIAL_VEHICLES.filter(
+                    (v) => v.league === filterLeague
+                  ).map((v) => v.id);
+                  const hasVehicleInThisLeague = vList.some((vId) =>
+                    leagueVehicles.includes(vId)
+                  );
+                  return !hasVehicleInThisLeague;
+                } else {
+                  // General reserve when viewing All Leagues
+                  const vList = getPilotVehicles(p);
+                  return (
+                    vList.length === 0 ||
+                    vList.includes("Reserva") ||
+                    vList.includes("Banca")
+                  );
+                }
               })
               .sort((a, b) => {
                 const numA = parseInt(a.raceNumber || "999", 10);
@@ -653,10 +734,14 @@ export default function Roster({
                     </div>
                     <div>
                       <h3 className="text-lg font-black text-white uppercase tracking-wider font-display">
-                        Banca de Reserva / Pruebas
+                        {isFilteredByLeague
+                          ? `Banca de Reserva / Sin Asiento en ${filterLeague}`
+                          : "Banca de Reserva / Pruebas"}
                       </h3>
                       <p className="text-xs text-stone-400 font-mono mt-0.5">
-                        Pilotos homologados aprobados sin coche o liga asignada actualmente
+                        {isFilteredByLeague
+                          ? `Pilotos sin vehículo asignado en ${filterLeague} o registrados en otras categorías`
+                          : "Pilotos homologados aprobados sin coche o liga asignada actualmente"}
                       </p>
                     </div>
                   </div>
@@ -668,7 +753,9 @@ export default function Roster({
 
                 {reservePilots.length === 0 ? (
                   <div className="bg-[#18181c]/40 border border-stone-800/40 p-6 rounded-xl text-center text-xs font-mono text-stone-500">
-                    Todos los pilotos oficiales tienen sus ligas y vehículos asignados actualmente.
+                    {isFilteredByLeague
+                      ? `Todos los pilotos visibles tienen un vehículo activo en la liga ${filterLeague}.`
+                      : "Todos los pilotos oficiales tienen sus ligas y vehículos asignados actualmente."}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -778,7 +865,7 @@ export default function Roster({
                   {(() => {
                     const availableVehicles = OFFICIAL_VEHICLES.filter((v) => {
                       if (editLeagues.length === 0) return true;
-                      return editLeagues.includes(v.league) || editVehicles.includes(v.id);
+                      return editLeagues.includes(v.league);
                     });
 
                     if (availableVehicles.length === 0) {
@@ -831,66 +918,82 @@ export default function Roster({
               {/* Dorsal Selection */}
               {(() => {
                 const selectedVehs = OFFICIAL_VEHICLES.filter((v) => editVehicles.includes(v.id));
-                const allDefaultDorsals = Array.from(
-                  new Set(selectedVehs.flatMap((v) => v.defaultDorsals || []))
-                );
+                const sourceVehs = selectedVehs.length > 0
+                  ? selectedVehs
+                  : OFFICIAL_VEHICLES.filter((v) => editLeagues.includes(v.league));
 
-                if (allDefaultDorsals.length > 0) {
-                  return (
-                    <div>
-                      <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
-                        Seleccionar Dorsal Oficial
-                      </label>
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        {allDefaultDorsals.map((dorsal) => {
-                          const isSelected = editRaceNumber === dorsal;
+                const availableDorsals = Array.from(
+                  new Set(sourceVehs.flatMap((v) => v.defaultDorsals || []))
+                ).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+                const currentSelectedDorsals = (editRaceNumber || "")
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+
+                const toggleDorsal = (dorsal: string) => {
+                  let updated: string[];
+                  if (currentSelectedDorsals.includes(dorsal)) {
+                    updated = currentSelectedDorsals.filter((d) => d !== dorsal);
+                  } else {
+                    updated = [...currentSelectedDorsals, dorsal];
+                  }
+                  setEditRaceNumber(updated.join(", "));
+                };
+
+                return (
+                  <div>
+                    <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-2 font-bold flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Hash className="w-3.5 h-3.5 text-cyan-400" />
+                        Dorsal(es) Oficial(es) Asignado(s)
+                      </div>
+                      {currentSelectedDorsals.length > 0 && (
+                        <span className="text-cyan-400 font-normal">
+                          (#{currentSelectedDorsals.join(", #")})
+                        </span>
+                      )}
+                    </label>
+
+                    {availableDorsals.length === 0 ? (
+                      <div className="p-3 bg-stone-900/50 border border-stone-800 rounded-xl text-center text-stone-500 text-xs font-mono">
+                        Selecciona un vehículo o liga arriba para habilitar sus dorsales oficiales.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {availableDorsals.map((dorsal) => {
+                          const isSelected = currentSelectedDorsals.includes(dorsal);
                           return (
                             <button
                               key={dorsal}
                               type="button"
-                              onClick={() => setEditRaceNumber(dorsal)}
-                              className={`p-2.5 rounded-xl border text-xs font-mono font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              onClick={() => toggleDorsal(dorsal)}
+                              className={`p-2.5 rounded-xl border text-xs font-mono font-bold transition-all flex items-center justify-between cursor-pointer ${
                                 isSelected
-                                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                                  ? "bg-cyan-950/40 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.15)]"
                                   : "bg-[#18181b] border-stone-800 text-stone-400 hover:border-stone-700 hover:text-white"
                               }`}
                             >
-                              <span>Dorsal</span>
-                              <span className="text-sm font-black text-white">#{dorsal}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-stone-500 text-[10px]">Dorsal</span>
+                                <span className="text-sm font-black text-white">#{dorsal}</span>
+                              </div>
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-all flex-shrink-0 ${
+                                  isSelected
+                                    ? "bg-cyan-500 border-cyan-400 text-black"
+                                    : "border-stone-700 bg-stone-900"
+                                }`}
+                              >
+                                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
                             </button>
                           );
                         })}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="O escribir dorsal personalizado..."
-                          value={editRaceNumber}
-                          onChange={(e) => setEditRaceNumber(e.target.value)}
-                          className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-2.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-400 placeholder:text-stone-600"
-                        />
-                      </div>
-                      <p className="text-[10px] text-stone-500 font-mono mt-1">
-                        Asigna directamente al asiento de este dorsal en el equipo.
-                      </p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div>
-                    <label className="block text-[11px] font-mono text-stone-300 uppercase tracking-wider mb-1.5 font-bold">
-                      Número de Dorsal / Coche
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: 5, 8, 23, 91, 32, 43, 29, 50, 51..."
-                      value={editRaceNumber}
-                      onChange={(e) => setEditRaceNumber(e.target.value)}
-                      className="w-full bg-[#18181b] border border-stone-800 rounded-xl p-3 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
-                    />
-                    <p className="text-[10px] text-stone-500 font-mono mt-1">
-                      Dorsal oficial visible en el recuadro de asiento.
+                    )}
+                    <p className="text-[10px] text-stone-500 font-mono mt-1.5">
+                      Puedes seleccionar uno o varios dorsales oficiales según los vehículos asignados al piloto.
                     </p>
                   </div>
                 );
