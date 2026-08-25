@@ -187,6 +187,8 @@ export interface TeamEvent {
   pinnable?: boolean;
   createdAt?: string;
   strategyNotes?: string;
+  discordNotified24h?: boolean;
+  discordNotified24hAt?: string;
 }
 
 export interface AttendanceRecord {
@@ -215,3 +217,33 @@ export interface Poll {
   creatorName: string;
   isClosed?: boolean;
 }
+
+export interface GalleryFolder {
+  id: string;
+  name: string;
+  pilotUid: string;
+  pilotName: string;
+  createdAt: string;
+  color?: string;
+  description?: string;
+}
+
+export interface GalleryImage {
+  id: string;
+  folderId?: string; // Empty or undefined means "General / Raíz"
+  folderName?: string;
+  title: string;
+  description?: string;
+  url: string;
+  r2Key: string;
+  pilotUid: string;
+  pilotName: string;
+  pilotPhoto?: string;
+  createdAt: string;
+  fileSize?: number;
+  mimeType?: string;
+  width?: number;
+  height?: number;
+  tags?: string[];
+}
+

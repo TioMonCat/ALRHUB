@@ -4,16 +4,19 @@ import {
   optimizarSetupConIngenieroALR,
   OptimizationResponse,
   SetupFieldSummary,
-  hasApiKey,
 } from "../services/geminiService";
 import { exportSetupToIni } from "./ALRIniParser";
 import { ApiKeyConfigModal } from "./ApiKeyConfigModal";
+import {
+  parseTelemetryFile,
+  parseMotecLdBinary,
+  TelemetrySummary,
+} from "../utils/telemetryParser";
 import {
   Bot,
   User,
   Send,
   Cpu,
-  Activity,
   Sparkles,
   AlertCircle,
   RefreshCw,
@@ -22,13 +25,16 @@ import {
   Download,
   Zap,
   Sliders,
-  Terminal,
   Key,
-  Camera,
   Upload,
   Thermometer,
   Trash2,
   Image as ImageIcon,
+  Gauge,
+  FileSpreadsheet,
+  ClipboardPaste,
+  Eye,
+  Check,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -42,6 +48,7 @@ export interface SetupAiMessage {
   trackTemp?: string;
   ambientTemp?: string;
   imageThumbnail?: string;
+  motecSummary?: TelemetrySummary;
 }
 
 interface SetupAiAssistantModalProps {
@@ -67,6 +74,7 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
   const [appliedCount, setAppliedCount] = useState(0);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
@@ -76,14 +84,25 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
   const [telemetryImage, setTelemetryImage] = useState<string | null>(null);
   const [telemetryMime, setTelemetryMime] = useState("image/jpeg");
   const [imageFileName, setImageFileName] = useState<string | null>(null);
+  const [motecSummary, setMotecSummary] = useState<TelemetrySummary | null>(null);
+  const [previewZoomImage, setPreviewZoomImage] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const motecFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper para procesar archivos de imagen
-  const processImageFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setError("Por favor, selecciona un archivo de imagen válido (PNG, JPG, WEBP).");
+  const showToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => {
+      setSuccessToast((curr) => (curr === msg ? null : curr));
+    }, 4000);
+  };
+
+  // Helper para procesar archivos o blobs de imagen (desde Ctrl+V o selector)
+  const processImageFile = (file: Blob, defaultName?: string) => {
+    if (file.type && !file.type.startsWith("image/")) {
+      setError("Por favor, pega o selecciona una imagen válida (PNG, JPG, WEBP).");
       return;
     }
     setError(null);
@@ -92,14 +111,98 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
       const result = e.target?.result as string;
       if (result) {
         setTelemetryImage(result);
-        setTelemetryMime(file.type || "image/jpeg");
-        setImageFileName(file.name || "captura_telemetria.png");
+        setTelemetryMime(file.type || "image/png");
+        const name = (file as File).name || defaultName || `captura_${new Date().toLocaleTimeString().replace(/:/g, "-")}.png`;
+        setImageFileName(name);
+        showToast("📸 ¡Captura pegada con éxito en el setup!");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  // Escuchar Pegar desde el Portapapeles (Ctrl + V)
+  // Helper para procesar archivos de telemetría MoTeC (.ld binario, .ldx, .csv, .json)
+  const processMotecFile = (file: File) => {
+    setError(null);
+    const fileNameLower = file.name.toLowerCase();
+    const isLd = fileNameLower.endsWith(".ld");
+    const isLdx = fileNameLower.endsWith(".ldx");
+
+    if (isLd) {
+      // Lectura binaria directa para archivos .ld de MoTeC i2 Pro / Assetto Corsa / ACC
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const buffer = e.target?.result as ArrayBuffer;
+        if (buffer) {
+          try {
+            const parsed = parseMotecLdBinary(buffer, file.name);
+            setMotecSummary(parsed);
+            showToast(`📊 ¡Telemetría MoTeC binaria (.ld) cargada: ${file.name}!`);
+          } catch (err) {
+            console.error("Error parseando MoTeC .ld:", err);
+            setError("Error al leer el archivo binario .ld de MoTeC. Asegúrate de que no esté corrupto.");
+          }
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else if (isLdx) {
+      // Archivo XML de marcas de vuelta / beacons de MoTeC
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (content) {
+          try {
+            const parsed = parseTelemetryFile(content, file.name);
+            setMotecSummary(parsed);
+            showToast("🏁 ¡Marcas de vuelta .ldx procesadas!");
+          } catch (err) {
+            setError("Error al procesar el archivo .ldx.");
+          }
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      // Archivos de texto (CSV, JSON, Logs AC, SimHub)
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (content) {
+          try {
+            const parsed = parseTelemetryFile(content, file.name);
+            setMotecSummary(parsed);
+            showToast(`📊 ¡Telemetría ${file.name} procesada correctamente!`);
+          } catch (err) {
+            setError("Error al parsear el archivo de telemetría. Asegúrate de que sea un CSV o JSON válido.");
+          }
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Botón para pegar desde portapapeles con API Clipboard
+  const handlePasteFromClipboardButton = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          for (const type of item.types) {
+            if (type.startsWith("image/")) {
+              const blob = await item.getType(type);
+              processImageFile(blob, "captura_portapapeles.png");
+              return;
+            }
+          }
+        }
+        showToast("No se detectó imagen en el portapapeles. Haz tu captura (Win+Shift+S) y pulsa Ctrl + V.");
+      } else {
+        showToast("Presiona directamente las teclas Ctrl + V en tu teclado para pegar la captura.");
+      }
+    } catch (err) {
+      showToast("Haz tu captura (Win+Shift+S) y pulsa directamente Ctrl + V en tu teclado.");
+    }
+  };
+
+  // Escuchar Pegar desde el Portapapeles (Ctrl + V) en cualquier lugar del modal
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       if (!isOpen) return;
@@ -109,7 +212,8 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
           if (items[i].type.indexOf("image") !== -1) {
             const blob = items[i].getAsFile();
             if (blob) {
-              processImageFile(blob);
+              e.preventDefault();
+              processImageFile(blob, "captura_portapapeles.png");
               break;
             }
           }
@@ -119,6 +223,29 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
   }, [isOpen]);
+
+  // Manejo de Drag & Drop para archivos (.ld, .csv, imágenes)
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      const name = file.name.toLowerCase();
+      if (file.type.startsWith("image/")) {
+        processImageFile(file);
+      } else if (
+        name.endsWith(".ld") ||
+        name.endsWith(".ldx") ||
+        name.endsWith(".csv") ||
+        name.endsWith(".json") ||
+        name.endsWith(".txt")
+      ) {
+        processMotecFile(file);
+      } else {
+        setError("Formato no reconocido. Arrastra una imagen (PNG/JPG) o un archivo MoTeC (.ld/.ldx/.csv).");
+      }
+    }
+  };
 
   // Helper para traducir IDs de campo a nombres legibles
   const getFieldName = (fieldId: string): string => {
@@ -163,7 +290,7 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
       const welcome: SetupAiMessage = {
         id: "setup-welcome",
         sender: "ingeniero",
-        text: `🏎️ **Box, box, piloto.** He cargado el setup **${setup.title}** para el **${setup.car}** en **${setup.track}**.\n\n⚠️ **REQUISITOS PREVIOS OBLIGATORIOS:**\nPara que pueda hacer un análisis óptimo de desgaste IMO, presiones y balance aerodinámico en tiempo real, **debes confirmar la captura del estado de tu coche/telemetría y las temperaturas del circuito y ambiente arriba**.\n\n¿Qué comportamiento dinámico quieres corregir o mejorar?`,
+        text: `🏎️ **Box, box, piloto.** He cargado el setup **${setup.title}** para el **${setup.car}** en **${setup.track}**.\n\n⚡ **TELEMETRÍA MOTEC & CAPTURAS ACTIVADAS:**\n- **Capturas de pantalla**: Haz tu recorte (**Win + Shift + S**) y presiona **Ctrl + V** directamente en cualquier momento para pegarlo.\n- **MoTeC i2 Pro**: Puedes cargar directamente tus archivos binarios **\`.ld\`** (o \`.ldx\` / CSV) generados automáticamente por Assetto Corsa / ACC.\n\n¿Qué comportamiento dinámico en pista quieres que analice y optimice?`,
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -183,9 +310,9 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
     const textToSend = (overrideText || input).trim();
     if (!textToSend || isLoading) return;
 
-    // VALIDACIÓN OBLIGATORIA
-    if (!telemetryImage) {
-      setError("⚠️ OBLIGATORIO: Debes adjuntar una foto o captura del estado actual del coche o telemetría para que el Ingeniero ALR pueda analizar presiones y desgaste.");
+    // VALIDACIÓN: Requerir foto pegada O archivo de telemetría MoTeC (o ambos)
+    if (!telemetryImage && !motecSummary) {
+      setError("⚠️ OBLIGATORIO: Debes pegar una captura de pantalla (Ctrl + V) O cargar un archivo de telemetría MoTeC (.ld / CSV) para que el Ingeniero ALR pueda analizar la telemetría.");
       return;
     }
     if (!trackTemp.trim() || !ambientTemp.trim()) {
@@ -206,7 +333,8 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
       timestamp: userTimestamp,
       trackTemp,
       ambientTemp,
-      imageThumbnail: telemetryImage,
+      imageThumbnail: telemetryImage || undefined,
+      motecSummary: motecSummary || undefined,
     };
 
     const chatHistory = messages.map((m) => ({
@@ -229,10 +357,13 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
         userQuery: textToSend,
         trackTemp,
         ambientTemp,
-        image: {
-          data: telemetryImage,
-          mimeType: telemetryMime,
-        },
+        telemetrySummary: motecSummary ? motecSummary.rawSummaryText : undefined,
+        image: telemetryImage
+          ? {
+              data: telemetryImage,
+              mimeType: telemetryMime,
+            }
+          : undefined,
         chatHistory,
       });
 
@@ -257,7 +388,7 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
       console.error("Error optimizando setup:", err);
       setError(
         err?.message ||
-          "Error al procesar la telemetría del reglaje con el Ingeniero ALR."
+          "Error al consultar al Ingeniero ALR. Revisa tu conexión o API Key."
       );
     } finally {
       setIsLoading(false);
@@ -270,7 +401,9 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
     setAppliedCount((prev) => prev + Object.keys(changes).length);
 
     setMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, applied: true } : m))
+      prev.map((msg) =>
+        msg.id === msgId ? { ...msg, applied: true } : msg
+      )
     );
   };
 
@@ -292,53 +425,91 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
     }
   };
 
-  const quickPrompts = [
-    "Corregir subviraje severo en entrada de curva",
-    "Corregir sobreviraje al acelerar a la salida",
-    "Optimizar presiones y temperatura para seco",
-    "Equilibrar carga aerodinámica (Rake / Ala trasera)",
-  ];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-4xl h-[94vh] sm:h-[88vh] bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
-        {/* MODAL HEADER */}
-        <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-black px-4 sm:px-6 py-3.5 border-b border-zinc-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-              <Cpu className="w-6 h-6 animate-pulse" />
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={handleDrop}
+    >
+      {/* Visual Drop Overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 bg-cyan-950/80 border-4 border-dashed border-cyan-400 z-50 flex flex-col items-center justify-center pointer-events-none gap-3">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 animate-bounce">
+            <Upload className="w-8 h-8" />
+          </div>
+          <p className="text-white font-mono font-bold text-lg">Suelta tu archivo MoTeC (.ld) o Captura de Imagen aquí</p>
+        </div>
+      )}
+
+      {/* Modal Zoom de Imagen */}
+      {previewZoomImage && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 cursor-zoom-out animate-fadeIn"
+          onClick={() => setPreviewZoomImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-zinc-900 p-2 rounded-2xl border border-zinc-700 shadow-2xl">
+            <img 
+              src={previewZoomImage} 
+              alt="Zoom Telemetría" 
+              className="max-w-full max-h-[85vh] object-contain rounded-xl"
+            />
+            <button 
+              onClick={() => setPreviewZoomImage(null)}
+              className="absolute top-4 right-4 p-2 bg-black/80 text-white rounded-full hover:bg-red-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="relative w-full max-w-5xl h-[94vh] bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+        
+        {/* TOAST FLOTANTE DE ACCIÓN */}
+        {successToast && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-cyan-400 text-black px-4 py-2 rounded-full font-mono text-xs font-black shadow-[0_0_20px_rgba(6,182,212,0.6)] flex items-center gap-2 animate-fadeIn">
+            <Check className="w-4 h-4 stroke-[3]" />
+            <span>{successToast}</span>
+          </div>
+        )}
+
+        {/* HEADER MODAL */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-zinc-800 bg-zinc-900/90 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/30 to-emerald-500/20 border border-cyan-500/50 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.25)]">
+              <Bot className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-white font-black text-sm sm:text-base tracking-wide uppercase flex items-center gap-2">
-                  Ingeniero ALR — Telemetría & Setup IA
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-white text-base sm:text-lg flex items-center gap-2">
+                  Ingeniero ALR • Telemetría MoTeC & IA
                 </h3>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
-                <span className="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px]">
-                  {setup.car}
+                <span className="bg-gradient-to-r from-cyan-500 to-emerald-500 text-black text-[10px] font-black uppercase font-mono px-2 py-0.5 rounded-full">
+                  MoTeC i2 Pro & .ld
                 </span>
-                <span>•</span>
-                <span className="text-cyan-400 font-bold bg-cyan-950/60 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px]">
-                  {setup.track}
-                </span>
-                {appliedCount > 0 && (
-                  <>
-                    <span>•</span>
-                    <span className="text-amber-400 font-bold text-[10px] flex items-center gap-1">
-                      <Zap className="w-3 h-3" /> {appliedCount} ajustes aplicados en vivo
-                    </span>
-                  </>
-                )}
               </div>
+              <p className="text-xs text-zinc-400 font-mono">
+                {setup.car} • {setup.track} ({setup.game})
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsApiKeyModalOpen(true)}
+              title="Configurar API Key de Gemini"
+              className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-amber-400 hover:text-amber-300 flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <Key className="w-4 h-4" />
+            </button>
             <button
               onClick={handleExportIni}
               title="Exportar archivo .ini actualizado"
-              className="flex items-center gap-1.5 text-xs text-black bg-cyan-400 hover:bg-cyan-300 px-3 py-1.5 rounded-lg font-bold font-mono transition-all cursor-pointer"
+              className="flex items-center gap-1.5 text-xs text-black bg-cyan-400 hover:bg-cyan-300 px-3 py-1.5 rounded-lg font-bold font-mono transition-all cursor-pointer shadow-[0_0_12px_rgba(6,182,212,0.3)]"
             >
               <Download className="w-3.5 h-3.5 text-black stroke-[3]" />
               <span className="hidden sm:inline">Exportar .ini</span>
@@ -353,10 +524,11 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
         </div>
 
         {/* PANEL DE DATOS OBLIGATORIOS (TELEMETRÍA Y TEMPERATURAS) */}
-        <div className="bg-zinc-950/90 border-b border-zinc-800 p-3 sm:p-4">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            {/* Campos de Temperatura */}
-            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl p-2.5">
+        <div className="bg-zinc-950/95 border-b border-zinc-800 p-3 sm:p-4 space-y-3 flex-shrink-0">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            
+            {/* 1. Campos de Temperatura de Circuito */}
+            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 flex-shrink-0">
               <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0">
                 <Thermometer className="w-4 h-4" />
               </div>
@@ -398,91 +570,238 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
               </div>
             </div>
 
-            {/* Subida Obligatoria de Foto / Captura */}
-            <div className="flex-1 min-w-0">
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    processImageFile(e.target.files[0]);
-                  }
-                }}
-                className="hidden"
-              />
+            {/* 2. Sección de Captura (Ctrl+V) y MoTeC .ld */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1 min-w-0">
+              
+              {/* ZONA DE PEGAR CAPTURA (CTRL + V) */}
+              <div className="relative">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      processImageFile(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
 
-              {telemetryImage ? (
-                <div className="flex items-center justify-between bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2 gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={telemetryImage}
-                      alt="Telemetría"
-                      className="w-10 h-10 object-cover rounded-lg border border-emerald-500/50 flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold font-mono text-emerald-400 uppercase tracking-wider">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Captura Telemetría Lista
-                      </span>
-                      <p className="text-xs text-zinc-300 font-mono truncate max-w-[200px] sm:max-w-[300px]">
-                        {imageFileName || "captura_estado.png"}
-                      </p>
+                {telemetryImage ? (
+                  <div className="flex items-center justify-between bg-emerald-950/40 border border-emerald-500/50 rounded-xl p-2 gap-2 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div 
+                        className="relative group cursor-pointer"
+                        onClick={() => setPreviewZoomImage(telemetryImage)}
+                        title="Clic para ampliar captura"
+                      >
+                        <img
+                          src={telemetryImage}
+                          alt="Captura de telemetría"
+                          className="w-10 h-10 object-cover rounded-lg border border-emerald-500/60 flex-shrink-0 group-hover:opacity-80 transition-opacity"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-opacity">
+                          <Eye className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold font-mono text-emerald-400 uppercase tracking-wider">
+                          <CheckCircle2 className="w-3 h-3" /> Captura Pegada
+                        </span>
+                        <p className="text-[11px] text-zinc-200 font-mono truncate max-w-[130px]" title={imageFileName || "captura.png"}>
+                          {imageFileName || "captura.png"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewZoomImage(telemetryImage)}
+                        title="Ver imagen completa"
+                        className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-emerald-400 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTelemetryImage(null);
+                          setImageFileName(null);
+                        }}
+                        title="Eliminar captura"
+                        className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
+                ) : (
+                  <div className="flex items-stretch gap-1.5 h-full">
+                    {/* Botón principal de Pegar Captura */}
+                    <button
+                      type="button"
+                      onClick={handlePasteFromClipboardButton}
+                      title="Haz una captura (Win+Shift+S) y pulsa aquí o presiona Ctrl+V"
+                      className="flex-1 min-h-[50px] bg-gradient-to-r from-zinc-900 to-zinc-900 hover:from-emerald-950/50 hover:to-zinc-900 border border-dashed border-emerald-500/40 hover:border-emerald-400 rounded-xl px-3 py-2 flex items-center justify-between gap-2 text-left transition-all cursor-pointer group shadow-sm"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 group-hover:scale-105 transition-all flex-shrink-0">
+                          <ClipboardPaste className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-[11px] font-bold font-mono text-emerald-300 group-hover:text-emerald-200 uppercase tracking-wider truncate">
+                            Pegar Captura (Ctrl + V)
+                          </span>
+                          <span className="block text-[9px] text-zinc-400 font-mono truncate">
+                            Win + Shift + S o Clic para pegar
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30 flex-shrink-0">
+                        Ctrl+V
+                      </span>
+                    </button>
 
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* Botón secundario para subir archivo */}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-[11px] font-mono font-bold bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                      title="Examinar archivo en tu PC"
+                      className="px-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-emerald-500/50 text-zinc-400 hover:text-white rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer flex-shrink-0"
                     >
-                      Cambiar
+                      <Upload className="w-3.5 h-3.5" />
+                      <span className="text-[8px] font-mono uppercase mt-0.5">Subir</span>
                     </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ZONA DE ARCHIVO MOTEC (.LD BINARIO, .LDX, CSV) */}
+              <div className="relative">
+                <input
+                  type="file"
+                  ref={motecFileInputRef}
+                  accept=".ld,.ldx,.csv,.txt,.json"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      processMotecFile(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
+
+                {motecSummary ? (
+                  <div className="flex items-center justify-between bg-cyan-950/40 border border-cyan-500/50 rounded-xl p-2 gap-2 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 flex-shrink-0">
+                        <Gauge className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold font-mono text-cyan-400 uppercase tracking-wider">
+                          <CheckCircle2 className="w-3 h-3" /> {motecSummary.sourceType}
+                        </span>
+                        <p className="text-[11px] text-zinc-200 font-mono font-bold truncate max-w-[130px]" title={motecSummary.fileName}>
+                          {motecSummary.fileName}
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setTelemetryImage(null);
-                        setImageFileName(null);
-                      }}
-                      title="Quitar imagen"
-                      className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-500/40 text-red-400 hover:text-white transition-colors cursor-pointer"
+                      onClick={() => setMotecSummary(null)}
+                      title="Eliminar telemetría"
+                      className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-red-400 transition-colors"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full bg-zinc-900 hover:bg-zinc-800 border-2 border-dashed border-red-500/40 hover:border-emerald-400/60 rounded-xl p-2.5 flex items-center justify-between gap-3 text-left transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 group-hover:text-emerald-400 group-hover:border-emerald-500/40 transition-colors flex-shrink-0">
-                      <Camera className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold font-mono text-red-400 group-hover:text-emerald-300 uppercase tracking-wider">
-                          Foto / Captura Coche *
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => motecFileInputRef.current?.click()}
+                    title="Cargar archivo binario .ld de MoTeC i2 Pro, .ldx o CSV"
+                    className="w-full min-h-[50px] bg-gradient-to-r from-zinc-900 to-zinc-900 hover:from-cyan-950/50 hover:to-zinc-900 border border-dashed border-cyan-500/40 hover:border-cyan-400 rounded-xl px-3 py-2 flex items-center justify-between gap-2 text-left transition-all cursor-pointer group shadow-sm"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 group-hover:scale-105 transition-all flex-shrink-0">
+                        <FileSpreadsheet className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-[11px] font-bold font-mono text-cyan-300 group-hover:text-cyan-200 uppercase tracking-wider truncate">
+                          MoTeC .ld Binario
                         </span>
-                        <span className="text-[9px] bg-red-950 border border-red-500/40 text-red-300 px-1.5 py-0.2 rounded font-mono font-bold">
-                          OBLIGATORIO
+                        <span className="block text-[9px] text-zinc-400 font-mono truncate">
+                          .ld / .ldx / i2 Pro / CSV
                         </span>
                       </div>
-                      <p className="text-[10px] text-zinc-400 font-mono truncate">
-                        Haz clic, arrastra o pega (Ctrl+V) captura de neumáticos/HUD
-                      </p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs font-mono font-bold text-zinc-400 group-hover:text-white flex-shrink-0">
-                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="hidden sm:inline">Subir Captura</span>
-                  </div>
-                </button>
-              )}
+                    <Upload className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform flex-shrink-0" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* TARJETA DE RESUMEN DE TELEMETRÍA MOTEC PARSEADA (SI EXISTE) */}
+          {motecSummary && (
+            <div className="bg-zinc-900/90 border border-cyan-500/40 rounded-xl p-3 font-mono text-xs space-y-2.5 animate-fadeIn shadow-lg">
+              <div className="flex flex-wrap items-center justify-between border-b border-zinc-800 pb-2 gap-2 text-[11px]">
+                <div className="flex items-center gap-2 text-cyan-300 font-bold">
+                  <Gauge className="w-4 h-4 text-cyan-400" />
+                  <span>Métricas Extraídas de MoTeC ({motecSummary.totalRows} muestras{motecSummary.channelsFound ? ` • ${motecSummary.channelsFound.length} canales` : ""})</span>
+                  {motecSummary.bestLapTime && (
+                    <span className="bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded text-[10px]">
+                      Mejor Vuelta: {motecSummary.bestLapTime}
+                    </span>
+                  )}
+                </div>
+
+                {motecSummary.bottomingOutAlert ? (
+                  <span className="bg-red-950 border border-red-500/60 text-red-300 text-[10px] px-2.5 py-0.5 rounded font-bold flex items-center gap-1 animate-pulse">
+                    ⚠️ Rozamiento Crítico Asfalto (Bottoming-Out)
+                  </span>
+                ) : (
+                  <span className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] px-2 py-0.5 rounded font-bold">
+                    ✓ Rake & Alturas OK
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
+                  <span className="text-zinc-500 block text-[9px] uppercase font-bold">Vel. Máx / RPM</span>
+                  <span className="text-white font-bold text-xs">{motecSummary.maxSpeedKmh} km/h</span>
+                  <span className="text-zinc-400 text-[9px] block font-mono">{motecSummary.maxRpm} RPM</span>
+                </div>
+
+                <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
+                  <span className="text-zinc-500 block text-[9px] uppercase font-bold">Rake Aerodinámico</span>
+                  <span className="text-cyan-300 font-bold text-xs">{motecSummary.rakeAvgMm} mm</span>
+                  <span className="text-zinc-400 text-[9px] block">Rake Mín: {motecSummary.rakeMinMm} mm</span>
+                </div>
+
+                <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
+                  <span className="text-zinc-500 block text-[9px] uppercase font-bold">Presiones Caliente</span>
+                  <span className="text-emerald-400 font-bold text-[11px] block">
+                    FL: {motecSummary.tyres.FL.pressPsi} | FR: {motecSummary.tyres.FR.pressPsi} PSI
+                  </span>
+                  <span className="text-zinc-400 text-[9px] block">
+                    RL: {motecSummary.tyres.RL.pressPsi} | RR: {motecSummary.tyres.RR.pressPsi} PSI
+                  </span>
+                </div>
+
+                <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
+                  <span className="text-zinc-500 block text-[9px] uppercase font-bold">Temp. Neumáticos Del.</span>
+                  <span className="text-amber-300 font-bold text-[10px] block">
+                    FL: {motecSummary.tyres.FL.tempAvgC}°C | FR: {motecSummary.tyres.FR.tempAvgC}°C
+                  </span>
+                  <span className="text-zinc-400 text-[9px] block">
+                    {motecSummary.balanceInfo.understeerEvents > 10 ? "⚠️ Subviraje Alto" : "Balance Estable"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CHAT MESSAGES BODY */}
@@ -522,23 +841,40 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
                   <span>{msg.timestamp}</span>
                 </div>
 
-                {/* Mostrar Muestra de Foto/Captura y Clima en Mensaje de Usuario */}
+                {/* Mostrar Muestra de Foto/Captura, MoTeC y Clima en Mensaje de Usuario */}
                 {msg.sender === "user" && (
                   <div className="mb-3 p-2 bg-black/60 rounded-xl border border-zinc-800 space-y-2">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                    <div className="flex flex-wrap items-center justify-between text-[10px] font-mono text-zinc-400 gap-1">
                       <span className="flex items-center gap-1 text-amber-400 font-bold">
                         <Thermometer className="w-3 h-3" /> Pista: {msg.trackTemp}°C | Amb: {msg.ambientTemp}°C
                       </span>
-                      <span className="text-emerald-400 flex items-center gap-1">
-                        <ImageIcon className="w-3 h-3" /> Telemetría
-                      </span>
+                      {msg.motecSummary && (
+                        <span className="text-cyan-400 font-bold bg-cyan-950/80 border border-cyan-500/40 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Gauge className="w-3 h-3" /> {msg.motecSummary.fileName} ({msg.motecSummary.sourceType})
+                        </span>
+                      )}
+                      {msg.imageThumbnail && (
+                        <span className="text-emerald-400 flex items-center gap-1 font-bold">
+                          <ImageIcon className="w-3 h-3" /> Captura Pegada
+                        </span>
+                      )}
                     </div>
                     {msg.imageThumbnail && (
-                      <img
-                        src={msg.imageThumbnail}
-                        alt="Captura adjunta"
-                        className="max-h-36 w-full object-cover rounded-lg border border-zinc-700/60"
-                      />
+                      <div 
+                        className="cursor-pointer group relative"
+                        onClick={() => setPreviewZoomImage(msg.imageThumbnail || null)}
+                      >
+                        <img
+                          src={msg.imageThumbnail}
+                          alt="Captura adjunta"
+                          className="max-h-40 w-full object-cover rounded-lg border border-zinc-700/60 group-hover:opacity-90 transition-opacity"
+                        />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-opacity">
+                          <span className="bg-black/80 text-white text-[10px] font-mono px-2 py-1 rounded flex items-center gap-1">
+                            <Eye className="w-3 h-3" /> Clic para ampliar
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -628,9 +964,9 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
                 <RefreshCw className="w-4 h-4 animate-spin" />
               </div>
               <div className="bg-zinc-900/90 border border-emerald-500/30 text-emerald-400 rounded-2xl rounded-tl-none p-4 text-xs sm:text-sm flex items-center gap-3 shadow-lg">
-                <Activity className="w-4 h-4 animate-pulse text-emerald-400" />
+                <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
                 <span className="font-mono tracking-wide text-zinc-300 animate-pulse">
-                  Analizando captura de telemetría, presiones a {trackTemp}°C y chasis...
+                  Analizando telemetría MoTeC, balance aerodinámico y presiones a {trackTemp}°C...
                 </span>
               </div>
             </div>
@@ -646,7 +982,27 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
-
+        {/* PROMPT SUGERENCIAS RÁPIDAS */}
+        <div className="px-4 py-2 bg-zinc-950 border-t border-zinc-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
+          <span className="text-[10px] text-zinc-500 font-mono uppercase font-bold flex-shrink-0 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-cyan-400" /> Consultas rápidas:
+          </span>
+          {[
+            "Analiza si tengo bottoming o rozamiento con el asfalto en curvas rápidas",
+            "Tengo subviraje en entrada de curva al soltar el freno",
+            "El coche es inestable en aceleración de curvas lentas (sobreviraje)",
+            "Ajusta presiones y caídas según el gradiente IMO",
+          ].map((sug, idx) => (
+            <button
+              key={idx}
+              disabled={isLoading}
+              onClick={() => handleSend(sug)}
+              className="text-[11px] font-mono text-zinc-300 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-cyan-500/40 px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors cursor-pointer flex-shrink-0"
+            >
+              {sug}
+            </button>
+          ))}
+        </div>
 
         {/* INPUT & SEND */}
         <div className="p-3 sm:p-4 bg-zinc-900 border-t border-zinc-800 flex items-center gap-2">
@@ -661,17 +1017,17 @@ export const SetupAiAssistantModal: React.FC<SetupAiAssistantModalProps> = ({
               }
             }}
             disabled={isLoading}
-            placeholder="Pide un ajuste al Ingeniero (ej. 'ablanda la barra delantera y aumenta caída')..."
-            className="flex-1 bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 text-zinc-100 placeholder-zinc-500 text-xs sm:text-sm rounded-xl px-4 py-3 outline-none transition-all disabled:opacity-50"
+            placeholder="Pide un ajuste al Ingeniero o consulta telemetría (Ctrl+V para pegar capturas)..."
+            className="flex-1 bg-zinc-950 border border-zinc-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/50 text-zinc-100 placeholder-zinc-500 text-xs sm:text-sm rounded-xl px-4 py-3 outline-none transition-all disabled:opacity-50 font-mono"
           />
           <button
             type="button"
             onClick={() => handleSend()}
             disabled={isLoading || !input.trim()}
-            className="bg-emerald-400 hover:bg-emerald-300 disabled:bg-zinc-800 disabled:text-zinc-600 text-black font-black px-5 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/10 cursor-pointer disabled:cursor-not-allowed uppercase tracking-wider font-mono"
+            className="bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 disabled:bg-zinc-800 disabled:text-zinc-600 text-black font-black px-5 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/10 cursor-pointer disabled:cursor-not-allowed uppercase tracking-wider font-mono flex-shrink-0"
           >
             <span className="hidden sm:inline">Optimizar</span>
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
       </div>

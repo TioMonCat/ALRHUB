@@ -9,7 +9,17 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Public static image route with permissive CORS for external scrapers / Discord CDN
+app.get(["/img/LogoAlrCircular.png", "/LogoAlrCircular.png"], (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.setHeader("Content-Type", "image/png");
+  res.sendFile(path.join(process.cwd(), "public/img/LogoAlrCircular.png"));
+});
 
 // API health check
 app.get("/api/health", (req, res) => {
@@ -225,6 +235,7 @@ ${input.chatHistory.map((m: any) => `${m.sender === "user" ? "PILOTO" : "INGENIE
 
 === PARÁMETROS Y VALORES DE REGLAJE ACTUALES ===
 ${JSON.stringify(input.fieldsSummary || input.currentValues, null, 2)}
+${input.telemetrySummary ? `\n=== DATOS DEDUCIDOS Y PARSEADOS DE TELEMETRÍA (MOTEC / LOGS) ===\n${typeof input.telemetrySummary === "string" ? input.telemetrySummary : JSON.stringify(input.telemetrySummary, null, 2)}\n` : ""}
 ${chatHistoryStr}
 === CONSULTA / PROBLEMA EN PISTA DEL PILOTO ===
 "${input.userQuery}"
@@ -237,6 +248,140 @@ ${chatHistoryStr}
     res.status(500).json({ error: err.message || "Error interno del servidor" });
   }
 });
+
+// ==========================================
+// CLOUDFLARE R2 GALLERY API ENDPOINTS
+// ==========================================
+
+import { getR2Client, isR2Configured, sanitizeR2Path } from "./src/server/r2Service";
+import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+
+// 1. Estado de Configuración de R2
+app.get("/api/r2/status", (req, res) => {
+  const configured = isR2Configured();
+  res.json({
+    configured,
+    bucketName: process.env.R2_BUCKET_NAME || null,
+    publicDomain: process.env.R2_PUBLIC_DOMAIN || null,
+  });
+});
+
+// 2. Subida de Imagen a Cloudflare R2 (Separada por Persona y Carpeta)
+app.post("/api/r2/upload", async (req, res) => {
+  try {
+    const {
+      imageData, // base64 string
+      fileName,
+      pilotUid,
+      pilotName,
+      folderName, // optional folder (e.g. "setups", "liveries", "carreras")
+      mimeType = "image/jpeg",
+    } = req.body;
+
+    if (!imageData || !pilotUid) {
+      return res.status(400).json({ error: "Faltan datos obligatorios (imageData, pilotUid)" });
+    }
+
+    const { client, bucketName, publicDomain } = getR2Client();
+
+    // Sanitizar nombres para la estructura de carpetas en R2
+    const cleanPilotName = sanitizeR2Path(pilotName || pilotUid);
+    const cleanFolderName = folderName ? sanitizeR2Path(folderName) : "general";
+    const timestamp = Date.now();
+    const cleanFileName = sanitizeR2Path(fileName || `captura_${timestamp}.png`);
+
+    // Estructura en R2: pilots/{pilotName_pilotUid}/{folderName}/{timestamp}_{fileName}
+    const r2Key = `pilots/${cleanPilotName}_${pilotUid.slice(0, 6)}/${cleanFolderName}/${timestamp}_${cleanFileName}`;
+
+    // Convertir Base64 a Buffer
+    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: r2Key,
+      Body: buffer,
+      ContentType: mimeType,
+    });
+
+    await client.send(command);
+
+    // Si hay un dominio público configurado para el bucket, usarlo; de lo contrario, usar endpoint de proxy interno
+    let publicUrl = "";
+    if (publicDomain) {
+      const cleanDomain = publicDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      publicUrl = `https://${cleanDomain}/${r2Key}`;
+    } else {
+      publicUrl = `/api/r2/file?key=${encodeURIComponent(r2Key)}`;
+    }
+
+    res.json({
+      success: true,
+      url: publicUrl,
+      r2Key,
+      fileSize: buffer.length,
+      mimeType,
+    });
+  } catch (err: any) {
+    console.error("Error subiendo a Cloudflare R2:", err);
+    res.status(500).json({ error: err.message || "Error al subir a Cloudflare R2" });
+  }
+});
+
+// 3. Servir / Proxy de archivo R2 en caso de no tener dominio público habilitado
+app.get("/api/r2/file", async (req, res) => {
+  try {
+    const key = req.query.key as string;
+    if (!key) {
+      return res.status(400).send("Clave de archivo requerida");
+    }
+
+    const { client, bucketName } = getR2Client();
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    });
+
+    const response = await client.send(command);
+    if (response.ContentType) {
+      res.setHeader("Content-Type", response.ContentType);
+    }
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+
+    if (response.Body) {
+      // @ts-ignore
+      response.Body.pipe(res);
+    } else {
+      res.status(404).send("Archivo no encontrado");
+    }
+  } catch (err: any) {
+    console.error("Error sirviendo archivo R2:", err);
+    res.status(404).send("Archivo no encontrado en R2");
+  }
+});
+
+// 4. Eliminar archivo de Cloudflare R2
+app.delete("/api/r2/delete", async (req, res) => {
+  try {
+    const { r2Key } = req.body;
+    if (!r2Key) {
+      return res.status(400).json({ error: "r2Key es requerida" });
+    }
+
+    const { client, bucketName } = getR2Client();
+    const command = new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: r2Key,
+    });
+
+    await client.send(command);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error eliminando de R2:", err);
+    res.status(500).json({ error: err.message || "Error al eliminar archivo de Cloudflare R2" });
+  }
+});
+
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

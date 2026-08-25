@@ -43,7 +43,8 @@ import {
   saveDiscordWebhookUrl, 
   send24HourEventReminder, 
   sendTestWebhookNotification,
-  isEvent24hAway 
+  isEvent24hAway,
+  mark24hReminderAsSent 
 } from "../services/discordService";
 
 interface CalendarioProps {
@@ -123,6 +124,17 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
     setIsSendingDiscord(null);
 
     if (result.success) {
+      mark24hReminderAsSent(event.id);
+      if (isAdmin && !dbReadOnly) {
+        try {
+          await updateDoc(doc(db, "events", event.id), {
+            discordNotified24h: true,
+            discordNotified24hAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.warn("Could not update discordNotified24h flag in Firestore:", e);
+        }
+      }
       setDiscordFeedback({ type: "success", text: `¡Aviso del evento "${event.title}" enviado exitosamente a Discord!` });
     } else {
       setDiscordFeedback({ type: "error", text: result.error || "No se pudo enviar el aviso a Discord." });
@@ -519,17 +531,31 @@ export default function Calendario({ events, currentUserProfile, dbReadOnly, onN
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0 relative z-10">
-            {upcoming24hEvents.map((ev) => (
-              <button
-                key={ev.id}
-                onClick={() => handleSend24hReminder(ev)}
-                disabled={isSendingDiscord === ev.id}
-                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                <span>{isSendingDiscord === ev.id ? "Enviando..." : `Avisar en Discord 24h`}</span>
-              </button>
-            ))}
+            {upcoming24hEvents.map((ev) => {
+              const isSent = ev.discordNotified24h;
+              return (
+                <button
+                  key={ev.id}
+                  onClick={() => handleSend24hReminder(ev)}
+                  disabled={isSendingDiscord === ev.id}
+                  className={`px-3.5 py-2 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    isSent 
+                      ? "bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300"
+                      : "bg-amber-500 hover:bg-amber-400 text-black shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+                  }`}
+                  title={isSent ? "Aviso enviado automáticamente. Haz clic para reenviar si lo deseas." : "Enviar aviso ahora"}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>
+                    {isSendingDiscord === ev.id 
+                      ? "Enviando..." 
+                      : isSent 
+                        ? `Aviso 24h Enviado (Reenviar)` 
+                        : `Avisar en Discord 24h`}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

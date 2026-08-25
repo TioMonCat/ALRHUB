@@ -17,6 +17,7 @@ import GestionAdmin from "./components/GestionAdmin";
 import EvaluarPostulaciones from "./components/EvaluarPostulaciones";
 import ALRLogo from "./components/ALRLogo";
 import PilotProfile from "./components/PilotProfile";
+import { checkAndAutoSend24hReminders } from "./services/discordService";
 
 // Icons
 import {
@@ -40,9 +41,11 @@ import {
   Clock,
   RefreshCw,
   Shield,
-  Fuel
+  Fuel,
+  Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { GaleriaView } from "./components/GaleriaView";
 
 // Firebase
 import { auth, db, googleProvider, OperationType, handleFirestoreError, recalculateAndUpdatePilotStats } from "./firebase";
@@ -73,7 +76,7 @@ const sanitizeForFirestore = <T,>(data: T): T => {
 export default function App() {
 
   // Navigation Menu options
-  type TabType = "inicio" | "noticias" | "roster" | "temporada" | "calendario" | "garaje" | "asistencia" | "gestion_admin" | "evaluar_postulaciones" | "pilot_profile";
+  type TabType = "inicio" | "noticias" | "roster" | "temporada" | "calendario" | "garaje" | "asistencia" | "galeria" | "gestion_admin" | "evaluar_postulaciones" | "pilot_profile";
   const [activeTab, setActiveTab] = useState<TabType>("inicio");
   const [selectedPilotId, setSelectedPilotId] = useState<string | null>(null);
 
@@ -627,6 +630,39 @@ export default function App() {
     };
   }, []);
 
+  // AUTOMATED 24-HOUR DISCORD NOTIFICATION ENGINE
+  // Automatically runs when events are loaded/changed and on a background interval
+  useEffect(() => {
+    if (!events || events.length === 0) return;
+
+    const runCheck = async () => {
+      try {
+        await checkAndAutoSend24hReminders(events, async (eventId) => {
+          // If admin / authenticated, update event doc in Firestore to persist notified status
+          if (currentUserProfile?.role === "admin" || (firebaseUser?.email && ["jaminecraft844@gmail.com", "bverdugo844@gmail.com"].includes(firebaseUser.email.toLowerCase()))) {
+            try {
+              await updateDoc(doc(db, "events", eventId), {
+                discordNotified24h: true,
+                discordNotified24hAt: new Date().toISOString()
+              });
+            } catch (err) {
+              console.warn("Could not update discordNotified24h in Firestore:", err);
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Error in automated Discord 24h check:", err);
+      }
+    };
+
+    // Run immediately on event change
+    runCheck();
+
+    // Check periodically every 2 minutes
+    const interval = setInterval(runCheck, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [events, currentUserProfile, firebaseUser]);
+
   // 4. GARAGE SETUP MODIFICATION IMPLEMENTATIONS
   const updateCustomSections = async (setup: CarSetup, updatedSections: SetupSection[]) => {
     const setupsPath = `users/default_user/setups`;
@@ -1169,6 +1205,7 @@ export default function App() {
     { id: "calendario", name: "Calendario", icon: Calendar, requiresPilot: true },
     { id: "asistencia", name: "Asistencia RSVP", icon: Clock, requiresPilot: true },
     { id: "garaje", name: "Setups", icon: Sliders, requiresPilot: true },
+    { id: "galeria", name: "Galería", icon: ImageIcon, requiresPilot: true },
     { id: "gestion_admin", name: "Gestión Admin", icon: Settings, requiresAdmin: true },
     { id: "evaluar_postulaciones", name: "Evaluar postulaciones", icon: ShieldAlert, requiresAdmin: true },
   ];
@@ -1914,6 +1951,15 @@ export default function App() {
                   dbReadOnly={!!dbError?.hasError}
                 />
               )}
+
+              {/* TAB: GALERIA */}
+              {activeTab === "galeria" && isApprovedMember && (
+                <GaleriaView
+                  currentUser={resolvedProfile}
+                  isTeamAdmin={isTeamAdmin}
+                />
+              )}
+
 
               {/* TAB 7: GESTION ADMIN */}
               {activeTab === "gestion_admin" && isTeamAdmin && (

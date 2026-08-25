@@ -4,7 +4,14 @@ import { Settings, Shield, User, Hash, Save, ShieldCheck, UserX, ToggleLeft, Ref
 import { db, OperationType, handleFirestoreError } from "../firebase";
 import { doc, updateDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { COUNTRIES } from "../presets";
-import { getDiscordWebhookUrl, saveDiscordWebhookUrl, sendTestWebhookNotification } from "../services/discordService";
+import { 
+  getDiscordWebhookUrl, 
+  saveDiscordWebhookUrl, 
+  sendTestWebhookNotification,
+  getBotAvatarUrl,
+  saveBotAvatarUrl,
+  OFFICIAL_PUBLIC_LOGO_URL
+} from "../services/discordService";
 
 interface GestionAdminProps {
   users: UserProfile[];
@@ -30,11 +37,13 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
   const [isResettingStats, setIsResettingStats] = useState(false);
 
   const [discordWebhook, setDiscordWebhook] = useState("");
+  const [customAvatar, setCustomAvatar] = useState("");
   const [isSavingDiscord, setIsSavingDiscord] = useState(false);
   const [isTestingDiscord, setIsTestingDiscord] = useState(false);
 
   useEffect(() => {
     getDiscordWebhookUrl().then((url) => setDiscordWebhook(url));
+    setCustomAvatar(getBotAvatarUrl());
   }, []);
 
   const handleSaveDiscord = async () => {
@@ -43,9 +52,12 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
     setSuccessMsg(null);
     try {
       await saveDiscordWebhookUrl(discordWebhook);
-      setSuccessMsg("URL de Webhook de Discord guardada correctamente para los avisos de 24h.");
+      if (customAvatar) {
+        saveBotAvatarUrl(customAvatar);
+      }
+      setSuccessMsg("Configuración de Discord (Webhook y Avatar de ALR Bot) guardada correctamente.");
     } catch (err) {
-      setErrorMsg("Error al guardar la URL de Webhook de Discord.");
+      setErrorMsg("Error al guardar la configuración de Discord.");
     } finally {
       setIsSavingDiscord(false);
     }
@@ -622,6 +634,86 @@ export default function GestionAdmin({ users, isLoading, dbReadOnly = false }: G
           >
             {isResettingStats ? "Reseteando..." : "Resetear todas las Stats a 0"}
           </button>
+        </div>
+      </div>
+
+      {/* Configuración de Discord & ALR Bot */}
+      <div className="p-5 bg-[#111113] border border-stone-800 rounded-2xl space-y-4 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-cyan-500/60 shrink-0 bg-black flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+              <img 
+                src="/img/LogoAlrCircular.png" 
+                alt="ALR Bot Logo" 
+                className="w-full h-full object-cover" 
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/LogoAlrCircular.png";
+                }}
+              />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-tight flex items-center gap-2 font-display">
+                <MessageSquare className="w-4 h-4 text-cyan-400" />
+                Configuración Discord • ALR Bot
+              </h4>
+              <p className="text-[11px] text-stone-400 font-mono">
+                Notificador automático de eventos del calendario (24h de anticipación) y avisos de escudería.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleTestDiscord}
+              disabled={isTestingDiscord || !discordWebhook}
+              className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 border border-stone-700 hover:border-cyan-500/50 text-cyan-300 font-mono text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isTestingDiscord ? "Enviando prueba..." : "Probar en Discord"}</span>
+            </button>
+            <button
+              onClick={handleSaveDiscord}
+              disabled={isSavingDiscord}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-black font-mono text-xs font-black uppercase tracking-wider rounded-lg transition-all shadow-[0_0_15px_rgba(6,182,212,0.25)] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{isSavingDiscord ? "Guardando..." : "Guardar"}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-mono font-bold text-stone-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>URL del Webhook de Discord</span>
+            </label>
+            <input
+              type="text"
+              value={discordWebhook}
+              onChange={(e) => setDiscordWebhook(e.target.value)}
+              placeholder="https://discord.com/api/webhooks/..."
+              className="w-full px-3.5 py-2.5 bg-stone-950/80 border border-stone-800 focus:border-cyan-500 text-white rounded-lg text-xs font-mono transition-all outline-none"
+            />
+            <p className="text-[10px] text-stone-500 font-mono">
+              Canal de Discord donde se publicarán los avisos con mención @everyone.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-mono font-bold text-stone-300 uppercase tracking-wider flex items-center justify-between">
+              <span>URL Pública del Logo del Bot (Avatar)</span>
+              <span className="text-[10px] text-cyan-400 font-normal">LogoAlrCircular.png</span>
+            </label>
+            <input
+              type="text"
+              value={customAvatar}
+              onChange={(e) => setCustomAvatar(e.target.value)}
+              placeholder={OFFICIAL_PUBLIC_LOGO_URL}
+              className="w-full px-3.5 py-2.5 bg-stone-950/80 border border-stone-800 focus:border-cyan-500 text-white rounded-lg text-xs font-mono transition-all outline-none"
+            />
+            <p className="text-[10px] text-stone-500 font-mono">
+              URL accesible en internet para que Discord descargue la imagen del avatar del bot.
+            </p>
+          </div>
         </div>
       </div>
 

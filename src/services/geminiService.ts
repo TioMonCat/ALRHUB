@@ -30,6 +30,7 @@ export interface OptimizationInput {
   userQuery: string;
   trackTemp?: string;
   ambientTemp?: string;
+  telemetrySummary?: any;
   image?: {
     data: string;
     mimeType: string;
@@ -374,6 +375,7 @@ ${input.chatHistory
 
 === PARÁMETROS Y VALORES DE REGLAJE ACTUALES ===
 ${JSON.stringify(input.fieldsSummary || input.currentValues, null, 2)}
+${input.telemetrySummary ? `\n=== DATOS DEDUCIDOS Y PARSEADOS DE TELEMETRÍA (MOTEC / LOGS) ===\n${typeof input.telemetrySummary === "string" ? input.telemetrySummary : JSON.stringify(input.telemetrySummary, null, 2)}\n` : ""}
 ${chatHistoryStr}
 === CONSULTA / PROBLEMA EN PISTA DEL PILOTO ===
 "${input.userQuery}"

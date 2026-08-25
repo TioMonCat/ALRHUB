@@ -14,6 +14,45 @@ export const DEFAULT_DISCORD_WEBHOOK_URL =
 const DISCORD_WEBHOOK_KEY = "alr_discord_webhook_url";
 
 /**
+ * Bot Identity
+ */
+export const DEFAULT_BOT_USERNAME = "ALR Bot";
+export const BOT_AVATAR_KEY = "alr_discord_bot_avatar_url";
+export const OFFICIAL_PUBLIC_LOGO_URL = "https://apexlatamracing.it.com/img/LogoAlrCircular.png";
+export const SHARED_APP_LOGO_URL = "https://ais-pre-uy2cffiolqr6eitjpanviu-387400197805.us-west1.run.app/img/LogoAlrCircular.png";
+
+export function getBotAvatarUrl(): string {
+  // 1. Check local storage override if user configured a custom image URL
+  if (typeof window !== "undefined") {
+    try {
+      const custom = localStorage.getItem(BOT_AVATAR_KEY);
+      if (custom && custom.trim().length > 0) return custom.trim();
+    } catch {}
+  }
+
+  // 2. If running on public domain or accessible host
+  if (typeof window !== "undefined" && window.location && window.location.origin) {
+    const origin = window.location.origin;
+    // If running in development or sandbox where external Discord servers cannot fetch internal URLs,
+    // point to the public domain or shared app URL so Discord can reliably fetch the PNG image
+    if (origin.includes("localhost") || origin.includes("ais-dev-") || origin.includes("127.0.0.1")) {
+      return OFFICIAL_PUBLIC_LOGO_URL;
+    }
+    return `${origin}/img/LogoAlrCircular.png`;
+  }
+
+  return OFFICIAL_PUBLIC_LOGO_URL;
+}
+
+export function saveBotAvatarUrl(url: string) {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(BOT_AVATAR_KEY, url.trim());
+    } catch {}
+  }
+}
+
+/**
  * Retrieve the Discord Webhook URL (from hardcoded default, localStorage, or Firestore)
  */
 export async function getDiscordWebhookUrl(): Promise<string> {
@@ -63,21 +102,30 @@ export async function saveDiscordWebhookUrl(url: string): Promise<void> {
  * Send a test notification to verify the Webhook connection
  */
 export async function sendTestWebhookNotification(webhookUrl?: string): Promise<{ success: boolean; error?: string }> {
+  const avatarUrl = getBotAvatarUrl();
   const payload = {
-    username: "ALR Racing Bot",
-    avatar_url: "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=150&auto=format&fit=crop&q=80",
+    username: DEFAULT_BOT_USERNAME,
+    avatar_url: avatarUrl,
     embeds: [
       {
+        author: {
+          name: DEFAULT_BOT_USERNAME,
+          icon_url: avatarUrl
+        },
         title: "✅ Conexión con Discord Establecida Exitosamente",
         description: "El bot de avisos de **ALR Racing Team** ha sido verificado correctamente. Todo evento en el calendario enviará notificaciones y avisos automáticos a este canal.",
         color: 3447003,
+        thumbnail: {
+          url: avatarUrl
+        },
         fields: [
           { name: "Estado", value: "🟢 Activo & Conectado", inline: true },
           { name: "Sistema", value: "Calendario Global ALR", inline: true },
           { name: "Eventos Soportados", value: "Carreras, Qualys, Prácticas, Briefings y Reuniones", inline: false }
         ],
         footer: {
-          text: "ALR Racing Team • Sistema Oficial de Notificaciones"
+          text: "ALR Racing Team • Sistema Oficial de Notificaciones",
+          icon_url: avatarUrl
         },
         timestamp: new Date().toISOString()
       }
@@ -161,15 +209,23 @@ export async function sendCalendarEventAnnouncement(
     ? `¡Atención equipo! Mañana tiene lugar en el calendario el evento **${event.title}** (${meta.label}). Prepara tu simulación y confirma tu asistencia en la web.`
     : `Se ha publicado/actualizado en el calendario el evento **${event.title}** (${meta.label}). Revisa los detalles y confirma tu asistencia en la plataforma web.`;
 
+  const avatarUrl = getBotAvatarUrl();
   const payload = {
     content: headerTitle,
-    username: "ALR Racing Bot",
-    avatar_url: "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=150&auto=format&fit=crop&q=80",
+    username: DEFAULT_BOT_USERNAME,
+    avatar_url: avatarUrl,
     embeds: [
       {
+        author: {
+          name: DEFAULT_BOT_USERNAME,
+          icon_url: avatarUrl
+        },
         title: `${meta.icon} ${event.title}`,
         description: descriptionText,
         color: meta.color,
+        thumbnail: {
+          url: avatarUrl
+        },
         fields: [
           {
             name: "📋 Tipo de Evento",
@@ -197,23 +253,14 @@ export async function sendCalendarEventAnnouncement(
             inline: true
           },
           {
-            name: "⏱️ Duración",
-            value: (event as any).duration || "Seguimiento oficial",
-            inline: true
-          },
-          {
-            name: "📝 Información & Notas",
-            value: event.description || event.strategyNotes || "Revisa la pestaña del calendario en la web para más detalles.",
-            inline: false
-          },
-          {
             name: "✅ Asistencia de Pilotos",
             value: "Ingresa a la sección **Asistencia** de ALR Racing Team para marcar si asistes o no.",
             inline: false
           }
         ],
         footer: {
-          text: `ALR Racing Team • Notificador del Calendario (${is24hAlert ? "Aviso 24 Horas" : "Evento de Calendario"})`
+          text: `ALR Racing Team • Notificador del Calendario (${is24hAlert ? "Aviso 24 Horas" : "Evento de Calendario"})`,
+          icon_url: avatarUrl
         },
         timestamp: parsedDate ? parsedDate.toISOString() : new Date().toISOString()
       }
@@ -234,8 +281,31 @@ export async function send24HourEventReminder(
   return sendCalendarEventAnnouncement(webhookUrl, event, true, customMention);
 }
 
+const SENT_24H_STORAGE_KEY = "alr_sent_24h_reminders";
+
+export function getSent24hReminderIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const stored = localStorage.getItem(SENT_24H_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch {}
+  return new Set();
+}
+
+export function mark24hReminderAsSent(eventId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const ids = getSent24hReminderIds();
+    ids.add(eventId);
+    localStorage.setItem(SENT_24H_STORAGE_KEY, JSON.stringify(Array.from(ids)));
+  } catch {}
+}
+
 /**
- * Check if an event is approximately 24 hours away (between 12 and 36 hours from now)
+ * Check if an event is in the upcoming 24-hour window (between 0 and 26 hours from now)
  */
 export function isEvent24hAway(eventDateStr: string): boolean {
   const eventDate = parseEventDate(eventDateStr);
@@ -245,5 +315,61 @@ export function isEvent24hAway(eventDateStr: string): boolean {
   const diffMs = eventDate.getTime() - now.getTime();
   const diffHours = diffMs / (1000 * 60 * 60);
 
-  return diffHours >= 12 && diffHours <= 36;
+  // Future event occurring within the next 26 hours
+  return diffHours > 0 && diffHours <= 26;
 }
+
+// In-flight sending lock to prevent race conditions during rapid re-renders
+const inFlightReminderIds = new Set<string>();
+
+/**
+ * Automatically inspects the calendar events and dispatches 24h reminders via ALR Bot
+ * when any event enters the 24-hour window.
+ */
+export async function checkAndAutoSend24hReminders(
+  events: TeamEvent[],
+  onNotified?: (eventId: string) => Promise<void> | void
+): Promise<{ sentCount: number; errors: string[] }> {
+  const webhookUrl = await getDiscordWebhookUrl();
+  if (!webhookUrl) return { sentCount: 0, errors: ["No webhook URL configured"] };
+
+  const alreadySentLocal = getSent24hReminderIds();
+  const eligibleEvents = events.filter((e) => {
+    if (!e.id || e.status === "completed") return false;
+    if (e.discordNotified24h) return false;
+    if (alreadySentLocal.has(e.id)) return false;
+    if (inFlightReminderIds.has(e.id)) return false;
+    return isEvent24hAway(e.date);
+  });
+
+  if (eligibleEvents.length === 0) {
+    return { sentCount: 0, errors: [] };
+  }
+
+  let sentCount = 0;
+  const errors: string[] = [];
+
+  for (const ev of eligibleEvents) {
+    inFlightReminderIds.add(ev.id);
+    try {
+      console.log(`[ALR Bot] Enviando aviso automático de 24h para evento: ${ev.title} (${ev.date})`);
+      const res = await send24HourEventReminder(webhookUrl, ev);
+      if (res.success) {
+        mark24hReminderAsSent(ev.id);
+        sentCount++;
+        if (onNotified) {
+          await onNotified(ev.id);
+        }
+      } else {
+        errors.push(`Error en ${ev.title}: ${res.error}`);
+        inFlightReminderIds.delete(ev.id);
+      }
+    } catch (err: any) {
+      errors.push(`Excepción en ${ev.title}: ${err?.message || err}`);
+      inFlightReminderIds.delete(ev.id);
+    }
+  }
+
+  return { sentCount, errors };
+}
+
