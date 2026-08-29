@@ -45,6 +45,8 @@ import {
   Layers,
   HardDrive,
   RefreshCw,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface GaleriaViewProps {
@@ -91,6 +93,87 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [hasCopiedCors, setHasCopiedCors] = useState(false);
+
+  const corsRuleJson = `[
+  {
+    "AllowedOrigins": [
+      "https://apexlatamracing.it.com",
+      "https://tiomoncat.github.io",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "*"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]`;
+
+  const copyCorsRule = () => {
+    navigator.clipboard.writeText(corsRuleJson);
+    setHasCopiedCors(true);
+    setTimeout(() => setHasCopiedCors(false), 3000);
+  };
+
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Función para descargar en calidad original / tamaño completo sin comprimir
+  const handleDownloadOriginal = async (image: GalleryImage) => {
+    try {
+      setIsDownloading(true);
+      // Fetch del blob original desde Cloudflare R2
+      const response = await fetch(image.url, { mode: "cors" });
+      if (!response.ok) throw new Error("No se pudo obtener el archivo original");
+      const blob = await response.blob();
+      
+      // Crear objeto URL y forzar descarga del archivo sin alteraciones
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      
+      // Determinar extensión adecuada
+      let extension = "png";
+      if (blob.type.includes("jpeg") || blob.type.includes("jpg")) extension = "jpg";
+      else if (blob.type.includes("webp")) extension = "webp";
+      else if (image.url.includes(".")) {
+        const urlExt = image.url.split(".").pop()?.split("?")[0];
+        if (urlExt) extension = urlExt;
+      }
+      
+      const cleanName = (image.title || "alr_foto_original")
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.download = `${cleanName}_fullres.${extension}`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn("Fallo descarga directa por blob, usando enlace directo:", err);
+      // Fallback: abrir o descargar directamente vía link
+      const fallbackLink = document.createElement("a");
+      fallbackLink.href = image.url;
+      fallbackLink.target = "_blank";
+      fallbackLink.rel = "noreferrer";
+      fallbackLink.download = `${(image.title || "alr_foto").replace(/[^a-zA-Z0-9_-]/g, "_")}_fullres.png`;
+      fallbackLink.click();
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -670,11 +753,18 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleDownloadOriginal(img)}
+                      title="Descargar imagen original (Full Res)"
+                      className="p-1 rounded bg-[#18181b] hover:bg-cyan-950/60 text-stone-400 hover:text-cyan-400 border border-stone-800 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
                     {(isTeamAdmin || img.pilotUid === currentUser.uid) && (
                       <button
                         onClick={() => handleDeleteImage(img)}
                         title="Eliminar de Cloudflare R2 y Galería"
-                        className="p-1 rounded bg-[#18181b] hover:bg-red-950/60 text-stone-400 hover:text-red-400 transition-colors"
+                        className="p-1 rounded bg-[#18181b] hover:bg-red-950/60 text-stone-400 hover:text-red-400 border border-stone-800 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -771,9 +861,42 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
             )}
 
             {uploadError && (
-              <div className="p-3 bg-red-950/60 border border-red-500/50 rounded-xl text-red-300 text-xs font-mono flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                <span>{uploadError}</span>
+              <div className="p-3.5 bg-red-950/60 border border-red-500/50 rounded-xl text-red-200 text-xs font-mono space-y-2.5">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1 flex-1">
+                    <p className="font-bold text-red-300">
+                      {uploadError.includes("CORS") ? "Falta habilitar CORS en Cloudflare R2" : "Error al subir imagen"}
+                    </p>
+                    <p className="text-[11px] text-stone-300 leading-relaxed">
+                      {uploadError.includes("CORS")
+                        ? "Tu bucket 'alr' de Cloudflare R2 bloquea las subidas directas desde el navegador porque no tiene activada una Política CORS. Habilítala en 3 clics:"
+                        : uploadError}
+                    </p>
+                  </div>
+                </div>
+
+                {uploadError.includes("CORS") && (
+                  <div className="bg-black/70 border border-red-500/30 rounded-lg p-3 space-y-2 text-[11px]">
+                    <ol className="list-decimal list-inside space-y-1 text-stone-300">
+                      <li>Ve a tu consola de Cloudflare &gt; <strong>R2</strong> &gt; Bucket <strong>alr</strong>.</li>
+                      <li>Entra a la pestaña <strong>Settings (Configuración)</strong> y baja hasta <strong>CORS Policy</strong>.</li>
+                      <li>Haz clic en <strong>Add CORS Policy</strong> (o Edit) y pega la siguiente regla:</li>
+                    </ol>
+
+                    <div className="flex items-center justify-between bg-stone-900 px-2.5 py-1.5 rounded border border-stone-800">
+                      <span className="text-[10px] text-stone-400 font-mono">Regla CORS JSON para R2</span>
+                      <button
+                        type="button"
+                        onClick={copyCorsRule}
+                        className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 font-bold px-2 py-0.5 rounded bg-cyan-950/50 border border-cyan-500/30 transition-colors"
+                      >
+                        {hasCopiedCors ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{hasCopiedCors ? "¡Copiado al portapapeles!" : "Copiar Regla CORS"}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1002,19 +1125,32 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadOriginal(previewImage)}
+                  disabled={isDownloading}
+                  className="p-2 rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-black transition-all shadow-md shadow-cyan-500/20 disabled:opacity-50 flex items-center justify-center"
+                  title="Descargar imagen original (Full Res)"
+                >
+                  {isDownloading ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                  )}
+                </button>
                 <a
                   href={previewImage.url}
                   target="_blank"
                   rel="noreferrer"
-                  download
                   className="p-2 rounded-lg bg-[#18181b] hover:bg-stone-800 text-stone-300 hover:text-white border border-stone-700 transition-colors"
-                  title="Abrir imagen original"
+                  title="Abrir imagen original en nueva pestaña"
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
                 <button
                   onClick={() => setPreviewImage(null)}
                   className="p-2 rounded-lg bg-[#18181b] hover:bg-red-950 text-stone-400 hover:text-white border border-stone-700 transition-colors"
+                  title="Cerrar vista previa"
                 >
                   <X className="w-4 h-4" />
                 </button>

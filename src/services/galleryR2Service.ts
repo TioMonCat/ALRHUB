@@ -139,7 +139,24 @@ export async function uploadImageToR2(params: UploadImageParams): Promise<{
     ContentType: mimeType,
   });
 
-  await client.send(command);
+  try {
+    await client.send(command);
+  } catch (err: any) {
+    console.error("Error en subida directa S3/R2:", err);
+    if (
+      err.name === "TypeError" ||
+      err.name === "NetworkError" ||
+      err.message?.includes("fetch") ||
+      err.message?.includes("NetworkError") ||
+      err.message?.includes("Failed to fetch") ||
+      err.message?.includes("Cross-Origin")
+    ) {
+      throw new Error(
+        "CORS_ERROR: Tu bucket 'alr' de Cloudflare R2 necesita tener agregada la regla CORS para permitir subidas web directas."
+      );
+    }
+    throw err;
+  }
 
   const cleanDomain = DIRECT_R2_CONFIG.publicDomain.replace(/^https?:\/\//, "").replace(/\/$/, "");
   const publicUrl = `https://${cleanDomain}/${r2Key}`;
