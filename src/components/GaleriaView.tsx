@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   collection,
-  query,
-  where,
   onSnapshot,
   addDoc,
   deleteDoc,
@@ -26,11 +24,9 @@ import {
   Trash2,
   Eye,
   Plus,
-  Filter,
   Search,
   Users,
   User,
-  Sparkles,
   Cloud,
   CheckCircle2,
   AlertCircle,
@@ -38,16 +34,23 @@ import {
   ExternalLink,
   ChevronRight,
   Download,
-  Tag,
-  Maximize2,
   Info,
   Calendar,
   Layers,
-  HardDrive,
   RefreshCw,
   Copy,
   Check,
   Images,
+  ArrowLeft,
+  FolderOpen,
+  Shield,
+  Lock,
+  UserPlus,
+  UserCheck,
+  UserMinus,
+  Crown,
+  ShieldCheck,
+  Settings,
 } from "lucide-react";
 
 interface UploadFileItem {
@@ -70,6 +73,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
 }) => {
   const [folders, setFolders] = useState<GalleryFolder[]>([]);
   const [images, setImages] = useState<GalleryImage[]>([]);
+  const [teamUsers, setTeamUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [r2Status, setR2Status] = useState<R2StatusResponse>({
     configured: false,
@@ -77,8 +81,8 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     publicDomain: null,
   });
 
-  // Filtros y Navegación
-  const [selectedFolderId, setSelectedFolderId] = useState<string | "all" | "root">("all");
+  // Filtros y Navegación (null = Vista Principal de Carpetas/Álbumes, "root" = ALR OFICIAL)
+  const [selectedFolderId, setSelectedFolderId] = useState<string | "all" | "root" | null>(null);
   const [selectedPilotFilter, setSelectedPilotFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [previewImage, setPreviewImage] = useState<GalleryImage | null>(null);
@@ -86,6 +90,10 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
   // Modales
   const [isNewFolderModalOpen, setIsNewFolderModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [folderToManage, setFolderToManage] = useState<GalleryFolder | null>(null);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [isUpdatingMembers, setIsUpdatingMembers] = useState(false);
 
   // Estados del Formulario de Carpeta
   const [newFolderName, setNewFolderName] = useState("");
@@ -104,6 +112,9 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [hasCopiedCors, setHasCopiedCors] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const corsRuleJson = `[
   {
@@ -137,62 +148,36 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     setTimeout(() => setHasCopiedCors(false), 3000);
   };
 
-  const [isDownloading, setIsDownloading] = useState(false);
-
-  // Función para descargar en calidad original / tamaño completo sin comprimir
-  const handleDownloadOriginal = async (image: GalleryImage) => {
-    try {
-      setIsDownloading(true);
-      // Fetch del blob original desde Cloudflare R2
-      const response = await fetch(image.url, { mode: "cors" });
-      if (!response.ok) throw new Error("No se pudo obtener el archivo original");
-      const blob = await response.blob();
-      
-      // Crear objeto URL y forzar descarga del archivo sin alteraciones
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      
-      // Determinar extensión adecuada
-      let extension = "png";
-      if (blob.type.includes("jpeg") || blob.type.includes("jpg")) extension = "jpg";
-      else if (blob.type.includes("webp")) extension = "webp";
-      else if (image.url.includes(".")) {
-        const urlExt = image.url.split(".").pop()?.split("?")[0];
-        if (urlExt) extension = urlExt;
-      }
-      
-      const cleanName = (image.title || "alr_foto_original")
-        .trim()
-        .replace(/[^a-zA-Z0-9_-]/g, "_");
-      link.download = `${cleanName}_fullres.${extension}`;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.warn("Fallo descarga directa por blob, usando enlace directo:", err);
-      // Fallback: abrir o descargar directamente vía link
-      const fallbackLink = document.createElement("a");
-      fallbackLink.href = image.url;
-      fallbackLink.target = "_blank";
-      fallbackLink.rel = "noreferrer";
-      fallbackLink.download = `${(image.title || "alr_foto").replace(/[^a-zA-Z0-9_-]/g, "_")}_fullres.png`;
-      fallbackLink.click();
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // 1. Cargar Estado de Cloudflare R2
   useEffect(() => {
     checkR2Status().then(setR2Status);
   }, []);
 
-  // 2. Suscribirse a las Carpetas en Firestore
+  // 2. Suscribirse a los Usuarios del Equipo
+  useEffect(() => {
+    const usersRef = collection(db, "users");
+    const unsubscribe = onSnapshot(
+      usersRef,
+      (snapshot) => {
+        const loadedUsers: UserProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          if (docSnap.id !== "default_user") {
+            loadedUsers.push({
+              uid: docSnap.id,
+              ...(docSnap.data() as Omit<UserProfile, "uid">),
+            });
+          }
+        });
+        setTeamUsers(loadedUsers);
+      },
+      (err) => {
+        console.error("Error cargando usuarios:", err);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // 3. Suscribirse a las Carpetas en Firestore
   useEffect(() => {
     const foldersRef = collection(db, "gallery_folders");
     const unsubscribe = onSnapshot(
@@ -205,9 +190,14 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
             ...(docSnap.data() as Omit<GalleryFolder, "id">),
           });
         });
-        // Ordenar por fecha de creación desc
         loadedFolders.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
         setFolders(loadedFolders);
+
+        // Si tenemos el modal de miembros abierto, sincronizar el folder seleccionado
+        setFolderToManage((prev) => {
+          if (!prev) return null;
+          return loadedFolders.find((f) => f.id === prev.id) || null;
+        });
       },
       (err) => {
         console.error("Error cargando carpetas:", err);
@@ -216,7 +206,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     return () => unsubscribe();
   }, []);
 
-  // 3. Suscribirse a las Imágenes en Firestore
+  // 4. Suscribirse a las Imágenes en Firestore
   useEffect(() => {
     const imagesRef = collection(db, "gallery_images");
     const unsubscribe = onSnapshot(
@@ -241,6 +231,42 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     return () => unsubscribe();
   }, []);
 
+  // Helper de Permisos
+  const canUploadToFolder = (folderId: string): boolean => {
+    if (folderId === "" || folderId === "root") {
+      // ALR OFICIAL: Solo Administradores
+      return isTeamAdmin;
+    }
+    const folder = folders.find((f) => f.id === folderId);
+    if (!folder) return false;
+    if (isTeamAdmin) return true;
+    if (folder.pilotUid === currentUser.uid) return true;
+    if (folder.allowedUids && folder.allowedUids.includes(currentUser.uid)) return true;
+    return false;
+  };
+
+  const canManageFolderMembers = (folder: GalleryFolder): boolean => {
+    return isTeamAdmin || folder.pilotUid === currentUser.uid;
+  };
+
+  const canDeleteImage = (img: GalleryImage): boolean => {
+    if (isTeamAdmin) return true;
+    if (img.pilotUid === currentUser.uid) return true;
+    if (img.folderId) {
+      const folder = folders.find((f) => f.id === img.folderId);
+      if (folder) {
+        if (folder.pilotUid === currentUser.uid) return true;
+        if (folder.allowedUids && folder.allowedUids.includes(currentUser.uid)) return true;
+      }
+    }
+    return false;
+  };
+
+  // Carpetas donde el usuario actual TIENE permiso de subida
+  const myWritableFolders = folders.filter(
+    (f) => isTeamAdmin || f.pilotUid === currentUser.uid || (f.allowedUids && f.allowedUids.includes(currentUser.uid))
+  );
+
   // Escuchar Pegar (Ctrl + V) global dentro del modal de subida o en la vista si está abierto
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -261,13 +287,37 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
         if (imageBlobs.length > 0) {
           e.preventDefault();
           processImageFiles(imageBlobs.map((b) => b.file));
-          setIsUploadModalOpen(true);
+          openUploadModalForCurrentView();
         }
       }
     };
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, [uploadItems]);
+  }, [uploadItems, selectedFolderId, folders, isTeamAdmin]);
+
+  const openUploadModalForCurrentView = () => {
+    if (selectedFolderId && selectedFolderId !== "all" && selectedFolderId !== "root") {
+      if (canUploadToFolder(selectedFolderId)) {
+        setUploadFolderId(selectedFolderId);
+      } else {
+        // Fallback a primera carpeta permitida
+        setUploadFolderId(myWritableFolders[0]?.id || "");
+      }
+    } else if (selectedFolderId === "root") {
+      if (isTeamAdmin) {
+        setUploadFolderId("");
+      } else {
+        setUploadFolderId(myWritableFolders[0]?.id || "");
+      }
+    } else {
+      if (isTeamAdmin) {
+        setUploadFolderId("");
+      } else {
+        setUploadFolderId(myWritableFolders[0]?.id || "");
+      }
+    }
+    setIsUploadModalOpen(true);
+  };
 
   const processImageFiles = async (files: (File | Blob)[]) => {
     const validFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
@@ -325,15 +375,17 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
 
     setIsCreatingFolder(true);
     try {
-      await addDoc(collection(db, "gallery_folders"), {
+      const createdDocRef = await addDoc(collection(db, "gallery_folders"), {
         name: newFolderName.trim(),
         color: newFolderColor,
         pilotUid: currentUser.uid,
         pilotName: currentUser.displayName || currentUser.email || "Piloto ALR",
+        allowedUids: [], // Inicialmente solo el creador
         createdAt: new Date().toISOString(),
       });
       setNewFolderName("");
       setIsNewFolderModalOpen(false);
+      setSelectedFolderId(createdDocRef.id);
     } catch (err: any) {
       console.error("Error creando carpeta:", err);
       alert("Error al crear carpeta: " + err.message);
@@ -350,7 +402,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     }
     if (
       !window.confirm(
-        "¿Seguro que deseas eliminar esta carpeta? Las imágenes asociadas se moverán a la raíz."
+        "¿Seguro que deseas eliminar esta carpeta? Las imágenes asociadas se desvincularán de la carpeta."
       )
     ) {
       return;
@@ -359,7 +411,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     try {
       await deleteDoc(doc(db, "gallery_folders", folderId));
       if (selectedFolderId === folderId) {
-        setSelectedFolderId("all");
+        setSelectedFolderId(null);
       }
     } catch (err: any) {
       console.error("Error eliminando carpeta:", err);
@@ -367,11 +419,58 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     }
   };
 
-  // Subir Imágenes a Cloudflare R2 y Guardar en Firestore (Lote o Individual)
+  // Añadir/Quitar Colaboradores a una Carpeta
+  const handleToggleCollaborator = async (targetPilotUid: string) => {
+    if (!folderToManage) return;
+    if (!canManageFolderMembers(folderToManage)) {
+      alert("Solo el creador de la carpeta o un administrador pueden gestionar colaboradores.");
+      return;
+    }
+
+    setIsUpdatingMembers(true);
+    try {
+      const currentAllowed = folderToManage.allowedUids || [];
+      const isAlreadyAllowed = currentAllowed.includes(targetPilotUid);
+
+      let newAllowed: string[];
+      if (isAlreadyAllowed) {
+        newAllowed = currentAllowed.filter((uid) => uid !== targetPilotUid);
+      } else {
+        newAllowed = [...currentAllowed, targetPilotUid];
+      }
+
+      await updateDoc(doc(db, "gallery_folders", folderToManage.id), {
+        allowedUids: newAllowed,
+      });
+
+      // Actualizar estado local inmediatamente
+      setFolderToManage({
+        ...folderToManage,
+        allowedUids: newAllowed,
+      });
+    } catch (err: any) {
+      console.error("Error actualizando colaboradores:", err);
+      alert("Error al actualizar colaboradores: " + err.message);
+    } finally {
+      setIsUpdatingMembers(false);
+    }
+  };
+
+  // Subir Imágenes a Cloudflare R2 y Guardar en Firestore
   const handleUploadImage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (uploadItems.length === 0) {
       setUploadError("Por favor carga o pega al menos una imagen primero.");
+      return;
+    }
+
+    // Validación estricta de permisos
+    if (!canUploadToFolder(uploadFolderId)) {
+      if (uploadFolderId === "" || uploadFolderId === "root") {
+        setUploadError("Solo los administradores de la página pueden subir contenido a la carpeta ALR OFICIAL.");
+      } else {
+        setUploadError("No tienes permisos de colaborador para subir imágenes en la carpeta seleccionada.");
+      }
       return;
     }
 
@@ -380,8 +479,10 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     setUploadProgressCount({ current: 0, total: uploadItems.length });
 
     try {
-      const selectedFolder = folders.find((f) => f.id === uploadFolderId);
-      const folderName = selectedFolder ? selectedFolder.name : "general";
+      const isRoot = !uploadFolderId || uploadFolderId === "root";
+      const selectedFolder = isRoot ? null : folders.find((f) => f.id === uploadFolderId);
+      const folderName = isRoot ? "ALR OFICIAL" : selectedFolder ? selectedFolder.name : "ALR OFICIAL";
+      
       const tagsArray = uploadTags
         .split(",")
         .map((t) => t.trim().toLowerCase())
@@ -403,7 +504,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
             pilotUid: currentUser.uid,
             pilotName: currentUser.displayName || currentUser.email || "Piloto",
             pilotPhoto: currentUser.photoURL,
-            folderId: uploadFolderId || undefined,
+            folderId: isRoot ? undefined : uploadFolderId,
             folderName: folderName,
             title: itemTitle,
             description: uploadDescription.trim(),
@@ -418,8 +519,8 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
           description: uploadDescription.trim(),
           url: r2Result.url,
           r2Key: r2Result.r2Key,
-          folderId: uploadFolderId || "",
-          folderName: selectedFolder ? selectedFolder.name : "Raíz / General",
+          folderId: isRoot ? "" : uploadFolderId,
+          folderName: folderName,
           pilotUid: currentUser.uid,
           pilotName: currentUser.displayName || currentUser.email || "Piloto ALR",
           pilotPhoto: currentUser.photoURL || "",
@@ -457,8 +558,8 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
 
   // Eliminar Imagen
   const handleDeleteImage = async (img: GalleryImage) => {
-    if (!isTeamAdmin && img.pilotUid !== currentUser.uid) {
-      alert("Solo el autor de la foto o un administrador pueden eliminarla.");
+    if (!canDeleteImage(img)) {
+      alert("Solo el autor de la foto, el dueño de la carpeta o un administrador pueden eliminarla.");
       return;
     }
 
@@ -467,10 +568,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     }
 
     try {
-      // 1. Eliminar de Firestore
       await deleteDoc(doc(db, "gallery_images", img.id));
-
-      // 2. Eliminar del Bucket R2
       if (img.r2Key) {
         await deleteImageFromR2(img.r2Key).catch((e) =>
           console.warn("No se pudo eliminar de R2 o ya no existía:", e)
@@ -486,7 +584,49 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     }
   };
 
-  // Lista única de pilotos que tienen imágenes o carpetas
+  // Descarga en Calidad Original
+  const handleDownloadOriginal = async (image: GalleryImage) => {
+    try {
+      setIsDownloading(true);
+      const response = await fetch(image.url, { mode: "cors" });
+      if (!response.ok) throw new Error("No se pudo obtener el archivo original");
+      const blob = await response.blob();
+      
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      
+      let extension = "png";
+      if (blob.type.includes("jpeg") || blob.type.includes("jpg")) extension = "jpg";
+      else if (blob.type.includes("webp")) extension = "webp";
+      else if (image.url.includes(".")) {
+        const urlExt = image.url.split(".").pop()?.split("?")[0];
+        if (urlExt) extension = urlExt;
+      }
+      
+      const cleanName = (image.title || "alr_foto_original")
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.download = `${cleanName}_fullres.${extension}`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn("Fallo descarga directa por blob, usando enlace directo:", err);
+      const fallbackLink = document.createElement("a");
+      fallbackLink.href = image.url;
+      fallbackLink.target = "_blank";
+      fallbackLink.rel = "noreferrer";
+      fallbackLink.download = `${(image.title || "alr_foto").replace(/[^a-zA-Z0-9_-]/g, "_")}_fullres.png`;
+      fallbackLink.click();
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Lista única de pilotos para el filtro
   const pilotsList = Array.from(
     new Set([
       ...images.map((img) => JSON.stringify({ uid: img.pilotUid, name: img.pilotName })),
@@ -496,19 +636,16 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
 
   // Filtrado de Imágenes
   const filteredImages = images.filter((img) => {
-    // Filtro por Carpeta
     if (selectedFolderId === "root") {
       if (img.folderId && img.folderId !== "") return false;
     } else if (selectedFolderId !== "all") {
       if (img.folderId !== selectedFolderId) return false;
     }
 
-    // Filtro por Piloto
     if (selectedPilotFilter !== "all" && img.pilotUid !== selectedPilotFilter) {
       return false;
     }
 
-    // Filtro por Búsqueda de texto
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchTitle = img.title?.toLowerCase().includes(q);
@@ -524,10 +661,33 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     return true;
   });
 
-  // Carpetas visibles según piloto seleccionado
+  // Carpetas visibles según filtro
   const visibleFolders = folders.filter((f) => {
     if (selectedPilotFilter !== "all" && f.pilotUid !== selectedPilotFilter) {
       return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = f.name?.toLowerCase().includes(q);
+      const matchPilot = f.pilotName?.toLowerCase().includes(q);
+      return matchName || matchPilot;
+    }
+    return true;
+  });
+
+  const rootImages = images.filter((img) => !img.folderId || img.folderId === "");
+  const currentFolder = folders.find((f) => f.id === selectedFolderId);
+
+  // Pilotos disponibles para añadir a una carpeta
+  const availablePilotsForFolder = teamUsers.filter((u) => {
+    if (!folderToManage) return false;
+    // No mostrar al creador de la carpeta en la lista de colaboradores a añadir
+    if (u.uid === folderToManage.pilotUid) return false;
+    if (memberSearchQuery.trim()) {
+      const q = memberSearchQuery.toLowerCase();
+      const matchName = u.displayName?.toLowerCase().includes(q);
+      const matchEmail = u.email?.toLowerCase().includes(q);
+      return matchName || matchEmail;
     }
     return true;
   });
@@ -535,7 +695,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
   return (
     <div className="space-y-6 animate-fadeIn">
       
-      {/* HEADER DE LA GALERÍA CON CLOUDFLARE R2 STATUS */}
+      {/* HEADER DE LA GALERÍA CON ESTADO R2 */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-850 pb-5">
         <div>
           <div className="flex items-center gap-3">
@@ -553,7 +713,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-stone-400 font-mono mt-0.5">
-                Almacenamiento en la nube organizado por carpetas y pilotos de la escudería
+                Álbumes privados, carpeta ALR Oficial y permisos de colaboración por piloto
               </p>
             </div>
           </div>
@@ -570,7 +730,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
           </button>
 
           <button
-            onClick={() => setIsUploadModalOpen(true)}
+            onClick={openUploadModalForCurrentView}
             className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-black font-black px-4 py-2 rounded-xl text-xs font-mono uppercase tracking-wide transition-all shadow-[0_0_15px_rgba(6,182,212,0.2)] cursor-pointer"
           >
             <Upload className="w-4 h-4 stroke-[2.5]" />
@@ -608,7 +768,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por título, notas, etiquetas o piloto..."
+              placeholder="Buscar por carpeta, título, notas, etiquetas o piloto..."
               className="w-full bg-[#18181b] border border-stone-800 focus:border-cyan-500/60 rounded-xl pl-10 pr-4 py-2 text-xs font-mono text-white placeholder-stone-500 outline-none transition-all"
             />
             {searchQuery && (
@@ -640,197 +800,551 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
             </select>
           </div>
         </div>
-
-        {/* SELECTOR DE CARPETAS / TABS HORIZONTALES */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar pt-1 border-t border-stone-850/60">
-          <button
-            onClick={() => setSelectedFolderId("all")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
-              selectedFolderId === "all"
-                ? "bg-cyan-500 text-black shadow-[0_0_10px_rgba(6,182,212,0.4)]"
-                : "bg-[#18181b] text-stone-400 hover:text-white border border-stone-800"
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Todas ({images.length})</span>
-          </button>
-
-          <button
-            onClick={() => setSelectedFolderId("root")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
-              selectedFolderId === "root"
-                ? "bg-cyan-500 text-black shadow-[0_0_10px_rgba(6,182,212,0.4)]"
-                : "bg-[#18181b] text-stone-400 hover:text-white border border-stone-800"
-            }`}
-          >
-            <Folder className="w-3.5 h-3.5" />
-            <span>General / Raíz ({images.filter((i) => !i.folderId).length})</span>
-          </button>
-
-          {visibleFolders.map((folder) => {
-            const count = images.filter((img) => img.folderId === folder.id).length;
-            const isSelected = selectedFolderId === folder.id;
-            return (
-              <div key={folder.id} className="flex items-center group flex-shrink-0">
-                <button
-                  onClick={() => setSelectedFolderId(folder.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-xs font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-cyan-500 text-black shadow-[0_0_10px_rgba(6,182,212,0.4)]"
-                      : "bg-[#18181b] text-stone-300 hover:text-white border border-stone-800"
-                  }`}
-                >
-                  <Folder className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{folder.name}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? "bg-black/30 text-black font-black" : "bg-black/60 text-stone-400"}`}>
-                    {count}
-                  </span>
-                </button>
-
-                {(isTeamAdmin || folder.pilotUid === currentUser.uid) && (
-                  <button
-                    onClick={() => handleDeleteFolder(folder.id, folder.pilotUid)}
-                    title="Eliminar carpeta"
-                    className={`px-1.5 py-1.5 rounded-r-lg border border-l-0 text-xs transition-colors cursor-pointer ${
-                      isSelected
-                        ? "bg-cyan-600 border-cyan-500 text-black hover:bg-red-600 hover:text-white"
-                        : "bg-[#18181b] border-stone-800 text-stone-500 hover:text-red-400 hover:bg-[#27272a]"
-                    }`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
       </div>
 
-      {/* GRID DE IMÁGENES */}
-      {loading ? (
-        <div className="p-16 flex flex-col items-center justify-center space-y-3 bg-[#111113] border border-stone-850 rounded-2xl">
-          <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
-          <p className="text-xs font-mono text-stone-400 uppercase tracking-widest">
-            Sincronizando Galería con Cloudflare R2...
-          </p>
-        </div>
-      ) : filteredImages.length === 0 ? (
-        <div className="p-16 flex flex-col items-center justify-center space-y-4 bg-[#111113] border border-stone-850 rounded-2xl text-center">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-950/30 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-            <ImageIcon className="w-8 h-8" />
-          </div>
-          <div className="space-y-1 max-w-sm">
-            <h3 className="text-base font-bold text-white font-mono uppercase tracking-wide">
-              No hay fotos en esta vista
-            </h3>
-            <p className="text-xs text-stone-400 font-mono leading-relaxed">
-              Sube capturas de telemetría, fotos de carreras o skins usando el botón superior o pegando directamente con <span className="text-cyan-400 font-bold">Ctrl + V</span>.
-            </p>
-          </div>
-          <button
-            onClick={() => setIsUploadModalOpen(true)}
-            className="flex items-center gap-2 bg-cyan-400 hover:bg-cyan-300 text-black font-mono font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer shadow-lg shadow-cyan-500/10"
-          >
-            <Upload className="w-4 h-4" />
-            <span>Subir Primera Foto</span>
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredImages.map((img) => (
-            <div
-              key={img.id}
-              className="bg-[#111113] border border-stone-850 hover:border-cyan-500/40 rounded-2xl overflow-hidden group transition-all flex flex-col shadow-md hover:shadow-cyan-500/5"
-            >
-              {/* Contenedor de Imagen con Overlay de Acciones */}
-              <div className="relative aspect-video bg-black/80 overflow-hidden cursor-pointer">
-                <img
-                  src={img.url}
-                  alt={img.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  onClick={() => setPreviewImage(img)}
-                />
-
-                {/* Badge de Carpeta */}
-                <div className="absolute top-2.5 left-2.5">
-                  <span className="bg-black/80 backdrop-blur-md border border-stone-700 text-cyan-300 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                    <Folder className="w-2.5 h-2.5 text-cyan-400" />
-                    {img.folderName || "General"}
-                  </span>
-                </div>
-
-                {/* Botón Ver Pantalla Completa */}
-                <div 
-                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2"
-                  onClick={() => setPreviewImage(img)}
-                >
-                  <span className="bg-cyan-500/90 text-black font-mono text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                    <Eye className="w-3 h-3" /> Ver Detalle
-                  </span>
-                </div>
-              </div>
-
-              {/* Información y Metadatos */}
-              <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
-                <div>
-                  <h4 className="text-sm font-bold text-white font-mono truncate" title={img.title}>
-                    {img.title}
-                  </h4>
-                  {img.description && (
-                    <p className="text-[11px] text-stone-400 font-mono line-clamp-2 mt-1">
-                      {img.description}
-                    </p>
-                  )}
-                </div>
-
-                {/* Tags si existen */}
-                {img.tags && img.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {img.tags.slice(0, 3).map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="bg-[#18181b] border border-stone-800 text-stone-400 text-[9px] font-mono px-1.5 py-0.2 rounded"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Footer de Tarjeta: Piloto & Acciones */}
-                <div className="pt-2 border-t border-stone-850/80 flex items-center justify-between text-[10px] font-mono text-stone-500">
-                  <div className="flex items-center gap-1.5 truncate max-w-[150px]">
-                    <div className="w-4 h-4 rounded-full bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-[8px]">
-                      {img.pilotName.charAt(0).toUpperCase()}
+      {/* ─────────────────────────────────────────────────────────────
+          VISTA 1: PRINCIPAL DE CARPETAS / ÁLBUMES (selectedFolderId === null)
+          ───────────────────────────────────────────────────────────── */}
+      {selectedFolderId === null ? (
+        <div className="space-y-6">
+          {/* GRID PRINCIPAL DE CARPETAS */}
+          {loading ? (
+            <div className="p-16 flex flex-col items-center justify-center space-y-3 bg-[#111113] border border-stone-850 rounded-2xl">
+              <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
+              <p className="text-xs font-mono text-stone-400 uppercase tracking-widest">
+                Sincronizando Álbumes con Cloudflare R2...
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              
+              {/* TARJETA 1: CARPETA OFICIAL ALR (ALR OFICIAL) */}
+              <div
+                onClick={() => setSelectedFolderId("root")}
+                className="bg-gradient-to-b from-[#16161a] to-[#0d0d10] border-2 border-cyan-500/40 hover:border-cyan-400 rounded-2xl overflow-hidden group transition-all flex flex-col shadow-[0_4px_20px_rgba(6,182,212,0.1)] cursor-pointer hover:scale-[1.01] relative"
+              >
+                {/* Visual Preview / Mini Collage */}
+                <div className="relative aspect-[16/10] bg-black/90 p-2 overflow-hidden border-b border-cyan-500/20">
+                  {rootImages.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-1.5 h-full">
+                      {rootImages.slice(0, 3).map((img, idx) => (
+                        <div key={img.id} className="relative rounded-lg overflow-hidden bg-stone-900 h-full">
+                          <img
+                            src={img.url}
+                            alt=""
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          {idx === 2 && rootImages.length > 3 && (
+                            <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-[10px] font-bold text-white font-mono">
+                              +{rootImages.length - 2}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    <span className="text-stone-300 truncate" title={img.pilotName}>
-                      {img.pilotName}
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-cyan-500/60 space-y-1">
+                      <Shield className="w-8 h-8 text-cyan-400/80" />
+                      <span className="text-[10px] font-mono text-cyan-300/80">Contenido Oficial ALR</span>
+                    </div>
+                  )}
+
+                  <span className="absolute top-2 left-2 bg-black/90 backdrop-blur-md text-amber-300 border border-amber-500/40 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                    <Shield className="w-2.5 h-2.5 text-amber-400" />
+                    ALR OFICIAL
+                  </span>
+                  <span className="absolute top-2 right-2 bg-black/80 backdrop-blur-md text-white border border-stone-700 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full">
+                    {rootImages.length} fotos
+                  </span>
+                </div>
+
+                {/* Contenido de la Carpeta */}
+                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-white font-mono group-hover:text-cyan-300 transition-colors flex items-center gap-1.5">
+                        <span>ALR OFICIAL</span>
+                        <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                      </h4>
+                      <span className="text-[9px] font-mono bg-cyan-950 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.2 rounded font-bold">
+                        Solo Admins
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-400 font-mono line-clamp-2 mt-1">
+                      Pósters oficiales, capturas de campeonatos, diseños y material del equipo gestionado por los administradores.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-stone-850 flex items-center justify-between text-xs font-mono">
+                    <span className="text-[10px] text-stone-400 flex items-center gap-1">
+                      <Crown className="w-3 h-3 text-amber-400" /> Admin Only
+                    </span>
+                    <span className="text-cyan-400 group-hover:translate-x-1 transition-transform flex items-center gap-1 font-bold text-[11px]">
+                      Abrir Álbum <ChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleDownloadOriginal(img)}
-                      title="Descargar imagen original (Full Res)"
-                      className="p-1 rounded bg-[#18181b] hover:bg-cyan-950/60 text-stone-400 hover:text-cyan-400 border border-stone-800 transition-colors"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                    {(isTeamAdmin || img.pilotUid === currentUser.uid) && (
-                      <button
-                        onClick={() => handleDeleteImage(img)}
-                        title="Eliminar de Cloudflare R2 y Galería"
-                        className="p-1 rounded bg-[#18181b] hover:bg-red-950/60 text-stone-400 hover:text-red-400 border border-stone-800 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
                 </div>
               </div>
+
+              {/* TARJETAS DE CARPETAS DE USUARIO */}
+              {visibleFolders.map((folder) => {
+                const folderImages = images.filter((img) => img.folderId === folder.id);
+                const isOwner = folder.pilotUid === currentUser.uid;
+                const isCollaborator = folder.allowedUids && folder.allowedUids.includes(currentUser.uid);
+                const canUpload = isTeamAdmin || isOwner || isCollaborator;
+                const collaboratorsCount = folder.allowedUids ? folder.allowedUids.length : 0;
+
+                return (
+                  <div
+                    key={folder.id}
+                    className="bg-[#111113] border border-stone-800 hover:border-cyan-500/60 rounded-2xl overflow-hidden group transition-all flex flex-col shadow-lg relative hover:scale-[1.01]"
+                  >
+                    {/* Visual Preview / Mini Collage */}
+                    <div
+                      onClick={() => setSelectedFolderId(folder.id)}
+                      className="relative aspect-[16/10] bg-black/90 p-2 overflow-hidden border-b border-stone-850 cursor-pointer"
+                    >
+                      {folderImages.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-1.5 h-full">
+                          {folderImages.slice(0, 3).map((img, idx) => (
+                            <div key={img.id} className="relative rounded-lg overflow-hidden bg-stone-900 h-full">
+                              <img
+                                src={img.url}
+                                alt=""
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              {idx === 2 && folderImages.length > 3 && (
+                                <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-[10px] font-bold text-white font-mono">
+                                  +{folderImages.length - 2}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-stone-600 space-y-1">
+                          <FolderOpen className="w-8 h-8 text-cyan-500/40" />
+                          <span className="text-[10px] font-mono text-stone-500">Carpeta vacía</span>
+                        </div>
+                      )}
+
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                        <span className="bg-black/80 backdrop-blur-md text-cyan-300 border border-cyan-500/40 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Folder className="w-2.5 h-2.5 text-cyan-400" />
+                          Álbum
+                        </span>
+                        {isOwner && (
+                          <span className="bg-cyan-950/90 backdrop-blur-md text-cyan-300 border border-cyan-500/50 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full">
+                            Tuya
+                          </span>
+                        )}
+                        {isCollaborator && (
+                          <span className="bg-emerald-950/90 backdrop-blur-md text-emerald-300 border border-emerald-500/50 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full">
+                            Colaborador
+                          </span>
+                        )}
+                      </div>
+
+                      <span className="absolute top-2 right-2 bg-black/80 backdrop-blur-md text-white border border-stone-700 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full">
+                        {folderImages.length} fotos
+                      </span>
+                    </div>
+
+                    {/* Contenido de la Carpeta */}
+                    <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                      <div
+                        onClick={() => setSelectedFolderId(folder.id)}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-white font-mono group-hover:text-cyan-300 transition-colors truncate" title={folder.name}>
+                            {folder.name}
+                          </h4>
+                          {!canUpload && (
+                            <span title="Solo el creador y colaboradores añadidos pueden subir contenido" className="text-stone-500">
+                              <Lock className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-1.5 text-[10px] font-mono text-stone-400">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <div className="w-3.5 h-3.5 rounded-full bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-[7px]">
+                              {folder.pilotName.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="truncate">{folder.pilotName}</span>
+                          </div>
+
+                          {collaboratorsCount > 0 && (
+                            <span className="text-[9px] text-emerald-400 flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                              <Users className="w-2.5 h-2.5" /> +{collaboratorsCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-stone-850 flex items-center justify-between text-xs font-mono">
+                        <div className="flex items-center gap-1">
+                          {/* Botón Gestionar Miembros (si es dueño o admin) */}
+                          {(isOwner || isTeamAdmin) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFolderToManage(folder);
+                                setIsMembersModalOpen(true);
+                              }}
+                              title="Añadir o gestionar colaboradores de la carpeta"
+                              className="p-1 rounded-lg text-stone-400 hover:text-cyan-300 hover:bg-cyan-950/40 transition-colors flex items-center gap-1 text-[10px]"
+                            >
+                              <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>Miembros</span>
+                            </button>
+                          )}
+
+                          {/* Botón Eliminar Carpeta */}
+                          {(isOwner || isTeamAdmin) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteFolder(folder.id, folder.pilotUid);
+                              }}
+                              title="Eliminar carpeta"
+                              className="p-1 rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-950/40 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => setSelectedFolderId(folder.id)}
+                          className="text-cyan-400 hover:text-cyan-300 font-bold text-[11px] flex items-center gap-1 group-hover:translate-x-1 transition-transform"
+                        >
+                          Abrir Álbum <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* TARJETA +: CREAR NUEVA CARPETA DIRECTAMENTE */}
+              <button
+                type="button"
+                onClick={() => setIsNewFolderModalOpen(true)}
+                className="bg-[#111113]/50 border-2 border-dashed border-stone-800 hover:border-cyan-500/60 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-2.5 text-stone-400 hover:text-cyan-300 transition-all cursor-pointer min-h-[220px] group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-stone-900 border border-stone-800 group-hover:border-cyan-500/40 flex items-center justify-center text-stone-400 group-hover:text-cyan-400 transition-colors">
+                  <FolderPlus className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="block text-xs font-bold font-mono text-white group-hover:text-cyan-300">
+                    + Crear Nueva Carpeta
+                  </span>
+                  <span className="text-[10px] text-stone-500 font-mono">
+                    Tu espacio propio para fotos y telemetría
+                  </span>
+                </div>
+              </button>
             </div>
-          ))}
+          )}
+
+          {/* SI EL USUARIO HIZO BÚSQUEDA Y HAY FOTOS COINCIDENTES, MOSTRARLAS TAMBIÉN */}
+          {searchQuery.trim() && filteredImages.length > 0 && (
+            <div className="pt-6 border-t border-stone-850 space-y-4">
+              <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Fotos individuales que coinciden con tu búsqueda ({filteredImages.length})</span>
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredImages.slice(0, 8).map((img) => (
+                  <div
+                    key={img.id}
+                    className="bg-[#111113] border border-stone-850 hover:border-cyan-500/40 rounded-2xl overflow-hidden group transition-all flex flex-col shadow-md"
+                  >
+                    <div className="relative aspect-video bg-black/80 overflow-hidden cursor-pointer" onClick={() => setPreviewImage(img)}>
+                      <img src={img.url} alt={img.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <div className="absolute top-2 left-2">
+                        <span className="bg-black/80 backdrop-blur-md border border-stone-700 text-cyan-300 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Folder className="w-2.5 h-2.5 text-cyan-400" />
+                          {img.folderName || "ALR OFICIAL"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <h4 className="text-xs font-bold text-white font-mono truncate">{img.title}</h4>
+                      <p className="text-[10px] text-stone-400 font-mono mt-0.5">{img.pilotName}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ─────────────────────────────────────────────────────────────
+           VISTA 2: DENTRO DE UNA CARPETA ESPECÍFICA, ALR OFICIAL O TODAS
+           ───────────────────────────────────────────────────────────── */
+        <div className="space-y-6">
+          
+          {/* BREADCRUMB & BARRA DE NAVEGACIÓN DENTRO DE CARPETA */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#111113] border border-stone-850 rounded-2xl p-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedFolderId(null)}
+                className="flex items-center gap-1.5 bg-[#18181b] hover:bg-[#27272a] text-cyan-400 hover:text-cyan-300 border border-stone-800 hover:border-cyan-500/40 px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer shadow-sm"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver a Carpetas</span>
+              </button>
+
+              <div className="border-l border-stone-800 pl-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white font-mono flex items-center gap-1.5">
+                    {selectedFolderId === "all" ? (
+                      <>
+                        <Layers className="w-4 h-4 text-cyan-400" />
+                        <span>Muro de Todas las Fotos</span>
+                      </>
+                    ) : selectedFolderId === "root" ? (
+                      <>
+                        <Shield className="w-4 h-4 text-amber-400" />
+                        <span className="text-amber-300">ALR OFICIAL</span>
+                        <span className="text-[9px] bg-cyan-950 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.2 rounded font-bold">
+                          Oficial
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <FolderOpen className="w-4 h-4 text-cyan-400" />
+                        <span>{currentFolder?.name || "Carpeta"}</span>
+                      </>
+                    )}
+                  </h3>
+                  <span className="bg-cyan-950 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
+                    {filteredImages.length} foto{filteredImages.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                {currentFolder && (
+                  <p className="text-[10px] text-stone-400 font-mono mt-0.5 flex items-center gap-2">
+                    <span>Creado por <strong className="text-stone-200">{currentFolder.pilotName}</strong></span>
+                    {currentFolder.allowedUids && currentFolder.allowedUids.length > 0 && (
+                      <span className="text-emerald-400">· {currentFolder.allowedUids.length} colaborador(es)</span>
+                    )}
+                  </p>
+                )}
+                {selectedFolderId === "root" && (
+                  <p className="text-[10px] text-stone-400 font-mono mt-0.5">
+                    Carpeta oficial del equipo · Solo administradores pueden publicar
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Acciones de la Carpeta Activa */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Botón Gestionar Miembros si es creador o admin de esta carpeta */}
+              {currentFolder && (canManageFolderMembers(currentFolder)) && (
+                <button
+                  onClick={() => {
+                    setFolderToManage(currentFolder);
+                    setIsMembersModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 bg-[#18181b] hover:bg-[#27272a] text-cyan-300 border border-stone-800 hover:border-cyan-500/40 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Añadir / Gestionar Miembros</span>
+                </button>
+              )}
+
+              {/* Botón Subir Fotos */}
+              {selectedFolderId === "root" ? (
+                isTeamAdmin ? (
+                  <button
+                    onClick={() => {
+                      setUploadFolderId("");
+                      setIsUploadModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-cyan-500 hover:opacity-90 text-black font-black px-3.5 py-1.5 rounded-xl text-xs font-mono uppercase tracking-wide transition-all cursor-pointer shadow-md"
+                  >
+                    <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Subir a ALR Oficial</span>
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[11px] font-mono text-stone-400 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Solo Administradores</span>
+                  </span>
+                )
+              ) : currentFolder ? (
+                canUploadToFolder(currentFolder.id) ? (
+                  <button
+                    onClick={() => {
+                      setUploadFolderId(currentFolder.id);
+                      setIsUploadModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Subir Fotos a esta Carpeta</span>
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[11px] font-mono text-stone-400 bg-stone-900 border border-stone-800 px-3 py-1.5 rounded-xl">
+                    <Lock className="w-3.5 h-3.5 text-stone-500" />
+                    <span>Álbum Privado de {currentFolder.pilotName}</span>
+                  </span>
+                )
+              ) : (
+                <button
+                  onClick={openUploadModalForCurrentView}
+                  className="flex items-center gap-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Subir Fotos</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* GRID DE FOTOS DE LA CARPETA */}
+          {loading ? (
+            <div className="p-16 flex flex-col items-center justify-center space-y-3 bg-[#111113] border border-stone-850 rounded-2xl">
+              <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
+              <p className="text-xs font-mono text-stone-400 uppercase tracking-widest">
+                Cargando imágenes de la carpeta...
+              </p>
+            </div>
+          ) : filteredImages.length === 0 ? (
+            <div className="p-16 flex flex-col items-center justify-center space-y-4 bg-[#111113] border border-stone-850 rounded-2xl text-center">
+              <div className="w-16 h-16 rounded-2xl bg-cyan-950/30 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <ImageIcon className="w-8 h-8" />
+              </div>
+              <div className="space-y-1 max-w-sm">
+                <h3 className="text-base font-bold text-white font-mono uppercase tracking-wide">
+                  No hay fotos en esta carpeta
+                </h3>
+                <p className="text-xs text-stone-400 font-mono leading-relaxed">
+                  {selectedFolderId === "root" && !isTeamAdmin
+                    ? "Esta carpeta oficial solo puede ser nutrida por los administradores de Apex Latam Racing."
+                    : currentFolder && !canUploadToFolder(currentFolder.id)
+                    ? `Esta carpeta pertenece a ${currentFolder.pilotName}. Pídele que te agregue como colaborador para poder subir tus fotos aquí.`
+                    : "Agrega capturas de telemetría o fotos usando el botón inferior o pegando con Ctrl + V."}
+                </p>
+              </div>
+
+              {((selectedFolderId === "root" && isTeamAdmin) || (currentFolder && canUploadToFolder(currentFolder.id))) && (
+                <button
+                  onClick={() => {
+                    if (selectedFolderId === "root") setUploadFolderId("");
+                    else if (currentFolder) setUploadFolderId(currentFolder.id);
+                    setIsUploadModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 bg-cyan-400 hover:bg-cyan-300 text-black font-mono font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer shadow-lg shadow-cyan-500/10"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Subir Fotos a esta Carpeta</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredImages.map((img) => (
+                <div
+                  key={img.id}
+                  className="bg-[#111113] border border-stone-850 hover:border-cyan-500/40 rounded-2xl overflow-hidden group transition-all flex flex-col shadow-md hover:shadow-cyan-500/5"
+                >
+                  {/* Contenedor de Imagen con Overlay de Acciones */}
+                  <div className="relative aspect-video bg-black/80 overflow-hidden cursor-pointer">
+                    <img
+                      src={img.url}
+                      alt={img.title}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onClick={() => setPreviewImage(img)}
+                    />
+
+                    {/* Badge de Carpeta */}
+                    <div className="absolute top-2.5 left-2.5">
+                      <span className="bg-black/80 backdrop-blur-md border border-stone-700 text-cyan-300 text-[9px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                        <Folder className="w-2.5 h-2.5 text-cyan-400" />
+                        {img.folderName || "ALR OFICIAL"}
+                      </span>
+                    </div>
+
+                    {/* Botón Ver Pantalla Completa */}
+                    <div 
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2"
+                      onClick={() => setPreviewImage(img)}
+                    >
+                      <span className="bg-cyan-500/90 text-black font-mono text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                        <Eye className="w-3 h-3" /> Ver Detalle
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Información y Metadatos */}
+                  <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+                    <div>
+                      <h4 className="text-sm font-bold text-white font-mono truncate" title={img.title}>
+                        {img.title}
+                      </h4>
+                      {img.description && (
+                        <p className="text-[11px] text-stone-400 font-mono line-clamp-2 mt-1">
+                          {img.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Tags si existen */}
+                    {img.tags && img.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {img.tags.slice(0, 3).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="bg-[#18181b] border border-stone-800 text-stone-400 text-[9px] font-mono px-1.5 py-0.2 rounded"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Footer de Tarjeta: Piloto & Acciones */}
+                    <div className="pt-2 border-t border-stone-850/80 flex items-center justify-between text-[10px] font-mono text-stone-500">
+                      <div className="flex items-center gap-1.5 truncate max-w-[150px]">
+                        <div className="w-4 h-4 rounded-full bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-[8px]">
+                          {img.pilotName.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-stone-300 truncate" title={img.pilotName}>
+                          {img.pilotName}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDownloadOriginal(img)}
+                          title="Descargar imagen original (Full Res)"
+                          className="p-1 rounded bg-[#18181b] hover:bg-cyan-950/60 text-stone-400 hover:text-cyan-400 border border-stone-800 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        {canDeleteImage(img) && (
+                          <button
+                            onClick={() => handleDeleteImage(img)}
+                            title="Eliminar de Cloudflare R2 y Galería"
+                            className="p-1 rounded bg-[#18181b] hover:bg-red-950/60 text-stone-400 hover:text-red-400 border border-stone-800 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -841,7 +1355,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
             <div className="flex items-center justify-between border-b border-stone-850 pb-3">
               <h3 className="text-base font-bold text-white font-mono flex items-center gap-2">
                 <FolderPlus className="w-5 h-5 text-cyan-400" />
-                Nueva Carpeta en Galería
+                Nueva Carpeta de Piloto
               </h3>
               <button
                 onClick={() => setIsNewFolderModalOpen(false)}
@@ -861,9 +1375,12 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                   required
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="Ej: Liveries GT3, Setups Monza, Podios..."
+                  placeholder="Ej: Mis Setups LMU, Telemetrías Spa, Podios 2026..."
                   className="w-full bg-[#18181b] border border-stone-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-white outline-none"
                 />
+                <p className="text-[10px] text-stone-500 mt-1">
+                  Serás el propietario de esta carpeta. Podrás invitar a otros pilotos para que suban o colaboren en ella.
+                </p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-850">
@@ -888,7 +1405,201 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 2: SUBIR / PEGAR FOTO EN CLOUDFLARE R2 */}
+      {/* MODAL 2: GESTIONAR MIEMBROS / COLABORADORES DE CARPETA */}
+      {isMembersModalOpen && folderToManage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-[#111113] border border-stone-800 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-stone-850 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white font-mono flex items-center gap-2">
+                  <Users className="w-5 h-5 text-cyan-400" />
+                  Gestionar Miembros de la Carpeta
+                </h3>
+                <p className="text-[11px] text-stone-400 font-mono mt-0.5">
+                  Álbum: <strong className="text-cyan-300">{folderToManage.name}</strong> · Creado por {folderToManage.pilotName}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsMembersModalOpen(false);
+                  setFolderToManage(null);
+                  setMemberSearchQuery("");
+                }}
+                className="text-stone-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-cyan-950/30 border border-cyan-500/30 rounded-xl p-3 text-xs font-mono text-cyan-200">
+              <p className="font-bold text-cyan-300 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-cyan-400" />
+                Permisos de Colaboración
+              </p>
+              <p className="text-[11px] text-stone-300 mt-0.5">
+                Los pilotos que agregues a esta carpeta podrán <strong>subir capturas, fotos y telemetrías</strong> directamente a este álbum.
+              </p>
+            </div>
+
+            {/* CREADOR / PROPIETARIO */}
+            <div className="space-y-1.5 font-mono">
+              <label className="text-[10px] uppercase font-bold text-stone-400">Propietario / Creador</label>
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-stone-900 border border-stone-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-xs">
+                    {folderToManage.pilotName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white">{folderToManage.pilotName}</p>
+                    <span className="text-[10px] text-amber-400 flex items-center gap-1">
+                      <Crown className="w-3 h-3 text-amber-400" /> Dueño del Álbum
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-stone-400 bg-black/40 px-2 py-0.5 rounded">
+                  Propietario
+                </span>
+              </div>
+            </div>
+
+            {/* COLABORADORES ACTUALES */}
+            <div className="space-y-2 font-mono">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase font-bold text-stone-400">
+                  Colaboradores Autorizados ({folderToManage.allowedUids ? folderToManage.allowedUids.length : 0})
+                </label>
+              </div>
+
+              {folderToManage.allowedUids && folderToManage.allowedUids.length > 0 ? (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {folderToManage.allowedUids.map((uid) => {
+                    const userObj = teamUsers.find((u) => u.uid === uid);
+                    const name = userObj ? userObj.displayName || userObj.email : `Piloto (${uid.slice(0, 6)})`;
+                    return (
+                      <div
+                        key={uid}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-6 h-6 rounded-full bg-emerald-900/60 border border-emerald-500/40 flex items-center justify-center text-emerald-300 font-bold text-[10px]">
+                            {name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white">{name}</p>
+                            <span className="text-[9px] text-emerald-400">Puede subir y colaborar</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isUpdatingMembers}
+                          onClick={() => handleToggleCollaborator(uid)}
+                          className="text-[10px] text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/50 border border-red-800 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <UserMinus className="w-3 h-3" />
+                          <span>Quitar</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[11px] text-stone-500 italic p-2 bg-stone-900/40 rounded-xl border border-stone-850">
+                  Aún no hay colaboradores agregados a esta carpeta. Solo el creador puede subir fotos.
+                </p>
+              )}
+            </div>
+
+            {/* SECCIÓN AÑADIR NUEVOS PILOTOS DEL EQUIPO */}
+            <div className="pt-3 border-t border-stone-850 space-y-2.5 font-mono">
+              <label className="text-[10px] uppercase font-bold text-stone-400 flex items-center justify-between">
+                <span>Añadir Pilotos de la Escudería</span>
+                <span className="text-stone-500 lowercase">({availablePilotsForFolder.length} disponibles)</span>
+              </label>
+
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  placeholder="Buscar piloto por nombre o correo..."
+                  className="w-full bg-[#18181b] border border-stone-800 focus:border-cyan-500 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white outline-none"
+                />
+              </div>
+
+              <div className="space-y-1 max-h-48 overflow-y-auto p-1 bg-black/40 rounded-xl border border-stone-850">
+                {availablePilotsForFolder.length === 0 ? (
+                  <p className="text-center text-[11px] text-stone-500 py-3">
+                    No se encontraron pilotos con ese criterio.
+                  </p>
+                ) : (
+                  availablePilotsForFolder.map((pilot) => {
+                    const isAdded = folderToManage.allowedUids?.includes(pilot.uid);
+                    return (
+                      <div
+                        key={pilot.uid}
+                        className="flex items-center justify-between p-2 rounded-lg hover:bg-stone-900 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-stone-800 border border-stone-700 flex items-center justify-center text-stone-300 font-bold text-[10px]">
+                            {(pilot.displayName || pilot.email || "P").charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-stone-200">
+                              {pilot.displayName || pilot.email}
+                            </p>
+                            <span className="text-[9px] text-stone-500 uppercase">{pilot.role || "piloto"}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isUpdatingMembers}
+                          onClick={() => handleToggleCollaborator(pilot.uid)}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50 ${
+                            isAdded
+                              ? "bg-emerald-950 text-emerald-400 border border-emerald-500/40 hover:bg-red-950 hover:text-red-400 hover:border-red-500/40"
+                              : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20"
+                          }`}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400" />
+                              <span>Añadido</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3 text-cyan-400" />
+                              <span>Añadir</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-stone-850 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMembersModalOpen(false);
+                  setFolderToManage(null);
+                  setMemberSearchQuery("");
+                }}
+                className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-white font-mono text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: SUBIR / PEGAR FOTO EN CLOUDFLARE R2 */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
           <div className="relative w-full max-w-lg bg-[#111113] border border-stone-800 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -899,7 +1610,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                   Subir Imagen a Cloudflare R2
                 </h3>
                 <p className="text-[11px] text-stone-400 font-mono mt-0.5">
-                  Se guardará en la carpeta seleccionada en tu espacio de piloto
+                  Selecciona la carpeta donde tienes permiso para almacenar fotos
                 </p>
               </div>
               <button
@@ -923,7 +1634,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                   <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
                   <div className="space-y-1 flex-1">
                     <p className="font-bold text-red-300">
-                      {uploadError.includes("CORS") ? "Falta habilitar CORS en Cloudflare R2" : "Error al subir imagen"}
+                      {uploadError.includes("CORS") ? "Falta habilitar CORS en Cloudflare R2" : "Aviso de Subida"}
                     </p>
                     <p className="text-[11px] text-stone-300 leading-relaxed">
                       {uploadError.includes("CORS")
@@ -954,6 +1665,30 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* AVISO SI EL USUARIO NO ES ADMIN Y NO TIENE CARPETAS PROPIAS NI COMPARTIDAS */}
+            {!isTeamAdmin && myWritableFolders.length === 0 && (
+              <div className="p-3.5 bg-amber-950/30 border border-amber-500/40 rounded-xl space-y-2 font-mono text-xs text-amber-200">
+                <p className="font-bold text-amber-300 flex items-center gap-1.5">
+                  <Info className="w-4 h-4 text-amber-400" />
+                  No tienes carpetas autorizadas aún
+                </p>
+                <p className="text-[11px] text-stone-300 leading-relaxed">
+                  La carpeta <strong>ALR OFICIAL</strong> es exclusiva para los administradores. Para comenzar a subir tus fotos y telemetrías, crea tu primera carpeta o pide a un compañero que te agregue a la suya.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUploadModalOpen(false);
+                    setIsNewFolderModalOpen(true);
+                  }}
+                  className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-[11px] px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer mt-1"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>+ Crear Mi Primera Carpeta</span>
+                </button>
               </div>
             )}
 
@@ -1087,7 +1822,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                       </div>
                     </button>
 
-                    {/* Botón Examinar Archivos Múltiples */}
+                    {/* Botón Seleccionar Archivos Múltiples */}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -1105,23 +1840,64 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                 )}
               </div>
 
-              {/* METADATOS: CARPETA & TÍTULO (O TÍTULO PRINCIPAL) */}
+              {/* METADATOS: CARPETA & TÍTULO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-stone-400 mb-1 uppercase text-[10px] font-bold">
-                    Carpeta Destino
+                    Carpeta Destino *
                   </label>
                   <select
                     value={uploadFolderId}
                     onChange={(e) => setUploadFolderId(e.target.value)}
                     className="w-full bg-[#18181b] border border-stone-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-white outline-none cursor-pointer"
                   >
-                    <option value="">📁 General / Raíz</option>
-                    {folders.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        📁 {f.name} ({f.pilotName})
-                      </option>
-                    ))}
+                    {isTeamAdmin && (
+                      <option value="">🏁 ALR OFICIAL (Solo Admins)</option>
+                    )}
+
+                    {/* Mis Carpetas */}
+                    {folders.filter((f) => f.pilotUid === currentUser.uid).length > 0 && (
+                      <optgroup label="── Mis Carpetas (Propietario) ──">
+                        {folders
+                          .filter((f) => f.pilotUid === currentUser.uid)
+                          .map((f) => (
+                            <option key={f.id} value={f.id}>
+                              📁 {f.name} (Tú)
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+
+                    {/* Carpetas donde soy colaborador */}
+                    {folders.filter(
+                      (f) => f.pilotUid !== currentUser.uid && f.allowedUids?.includes(currentUser.uid)
+                    ).length > 0 && (
+                      <optgroup label="── Carpetas Compartidas Conmigo ──">
+                        {folders
+                          .filter((f) => f.pilotUid !== currentUser.uid && f.allowedUids?.includes(currentUser.uid))
+                          .map((f) => (
+                            <option key={f.id} value={f.id}>
+                              👥 {f.name} (de {f.pilotName})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+
+                    {/* Otras carpetas (solo seleccionables por admins) */}
+                    {isTeamAdmin &&
+                      folders.filter(
+                        (f) => f.pilotUid !== currentUser.uid && !f.allowedUids?.includes(currentUser.uid)
+                      ).length > 0 && (
+                        <optgroup label="── Otras Carpetas (Modo Admin) ──">
+                          {folders
+                            .filter((f) => f.pilotUid !== currentUser.uid && !f.allowedUids?.includes(currentUser.uid))
+                            .map((f) => (
+                              <option key={f.id} value={f.id}>
+                                📁 {f.name} ({f.pilotName})
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
                   </select>
                 </div>
 
@@ -1142,7 +1918,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
               {/* DESCRIPCIÓN & TAGS */}
               <div>
                 <label className="block text-stone-400 mb-1 uppercase text-[10px] font-bold">
-                  Descripción o Notas Técnicas (Opcional para todas las fotos)
+                  Descripción o Notas Técnicas (Opcional)
                 </label>
                 <textarea
                   rows={2}
@@ -1170,7 +1946,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
               <div className="flex items-center justify-between pt-3 border-t border-stone-850">
                 <span className="text-[11px] text-stone-400 font-mono">
                   {uploadItems.length > 0
-                    ? `${uploadItems.length} foto${uploadItems.length > 1 ? "s" : ""} lista${uploadItems.length > 1 ? "s" : ""} para subir`
+                    ? `${uploadItems.length} foto${uploadItems.length > 1 ? "s" : ""} lista${uploadItems.length > 1 ? "s" : ""}`
                     : "No hay fotos seleccionadas"}
                 </span>
 
@@ -1187,7 +1963,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={isUploading || uploadItems.length === 0}
+                    disabled={isUploading || uploadItems.length === 0 || (!isTeamAdmin && myWritableFolders.length === 0)}
                     className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-black font-black rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-cyan-500/20"
                   >
                     {isUploading ? (
@@ -1217,7 +1993,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 3: VISTA PREVIA FULLSCREEN DE IMAGEN */}
+      {/* MODAL 4: VISTA PREVIA FULLSCREEN DE IMAGEN */}
       {previewImage && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-black/90 backdrop-blur-md animate-fadeIn"
@@ -1238,7 +2014,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                     {previewImage.title}
                   </h3>
                   <p className="text-[11px] text-stone-400 font-mono">
-                    Subido por <span className="text-cyan-300 font-bold">{previewImage.pilotName}</span> en carpeta <span className="text-white font-bold">{previewImage.folderName || "General"}</span>
+                    Subido por <span className="text-cyan-300 font-bold">{previewImage.pilotName}</span> en carpeta <span className="text-white font-bold">{previewImage.folderName || "ALR OFICIAL"}</span>
                   </p>
                 </div>
               </div>

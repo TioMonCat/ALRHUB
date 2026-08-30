@@ -148,7 +148,14 @@ service cloud.firestore {
       allow read: if isAuth();
       allow create: if isAuth() && (request.resource.data.pilotUid == request.auth.uid || isAppAdmin());
       allow update: if isAuth() && (resource.data.pilotUid == request.auth.uid || isAppAdmin());
-      allow delete: if isAuth() && (resource.data.pilotUid == request.auth.uid || isAppAdmin());
+      allow delete: if isAuth() && (
+        resource.data.pilotUid == request.auth.uid || 
+        isAppAdmin() || 
+        (resource.data.get('folderId', '') != '' && exists(/databases/$(database)/documents/gallery_folders/$(resource.data.folderId)) && (
+          get(/databases/$(database)/documents/gallery_folders/$(resource.data.folderId)).data.pilotUid == request.auth.uid ||
+          get(/databases/$(database)/documents/gallery_folders/$(resource.data.folderId)).data.get('allowedUids', []).hasAny([request.auth.uid])
+        ))
+      );
     }
   }
 }

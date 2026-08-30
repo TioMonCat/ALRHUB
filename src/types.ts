@@ -226,6 +226,7 @@ export interface GalleryFolder {
   createdAt: string;
   color?: string;
   description?: string;
+  allowedUids?: string[]; // Array of pilot UIDs permitted to upload/collaborate in this folder
 }
 
 export interface GalleryImage {
