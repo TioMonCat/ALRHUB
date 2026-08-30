@@ -54,12 +54,42 @@ function sanitizeR2Path(input: string): string {
     .toLowerCase();
 }
 
+// Helper rápido para convertir Base64 Data URL a Uint8Array de forma nativa sin congelar el hilo principal
+async function dataUrlToUint8Array(dataUrl: string): Promise<Uint8Array> {
+  try {
+    const res = await fetch(dataUrl);
+    const buffer = await res.arrayBuffer();
+    return new Uint8Array(buffer);
+  } catch {
+    const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+    const binaryString = atob(base64Data);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  }
+}
+
 /**
  * Consulta si el backend o la configuración directa de Cloudflare R2 está lista
  */
 export async function checkR2Status(): Promise<R2StatusResponse> {
+  // En producción estática (GitHub Pages o dominio propio), usar directamente la configuración
+  if (DIRECT_R2_CONFIG.accountId && DIRECT_R2_CONFIG.accessKeyId && DIRECT_R2_CONFIG.bucketName) {
+    return {
+      configured: true,
+      bucketName: DIRECT_R2_CONFIG.bucketName,
+      publicDomain: DIRECT_R2_CONFIG.publicDomain,
+    };
+  }
+
   try {
-    const res = await fetch("/api/r2/status");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch("/api/r2/status", { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       if (data.configured) {
@@ -70,68 +100,37 @@ export async function checkR2Status(): Promise<R2StatusResponse> {
     // Si falla el fetch a /api/ (por ejemplo en GitHub Pages), pasamos al fallback directo
   }
 
-  // Fallback directo para GitHub Pages y entornos estáticos
-  if (DIRECT_R2_CONFIG.accountId && DIRECT_R2_CONFIG.accessKeyId && DIRECT_R2_CONFIG.bucketName) {
-    return {
-      configured: true,
-      bucketName: DIRECT_R2_CONFIG.bucketName,
-      publicDomain: DIRECT_R2_CONFIG.publicDomain,
-    };
-  }
-
   return { configured: false, bucketName: null, publicDomain: null };
 }
 
 /**
  * Sube una imagen directamente o vía backend a Cloudflare R2
  */
-export async function uploadImageToR2(params: UploadImageParams): Promise<{
+export async function uploadImageToR2(
+  params: UploadImageParams,
+  onProgressStep?: (step: string) => void
+): Promise<{
   url: string;
   r2Key: string;
   fileSize: number;
   mimeType: string;
 }> {
-  // 1. Intentar primero con el endpoint del Backend Express si está disponible
-  try {
-    const response = await fetch("/api/r2/upload", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        imageData: params.imageData,
-        fileName: params.fileName,
-        pilotUid: params.pilotUid,
-        pilotName: params.pilotName,
-        folderName: params.folderName || "general",
-        mimeType: params.mimeType || "image/jpeg",
-      }),
-    });
+  onProgressStep?.("Procesando imagen...");
 
-    if (response.ok) {
-      return await response.json();
-    }
-  } catch {
-    // Si la API del servidor no responde (ej. en GitHub Pages), usar subida directa
-  }
-
-  // 2. Subida Directa desde el cliente (GitHub Pages / SPA)
-  const client = getDirectS3Client();
   const cleanPilotName = sanitizeR2Path(params.pilotName || params.pilotUid);
   const cleanFolderName = params.folderName ? sanitizeR2Path(params.folderName) : "general";
   const timestamp = Date.now();
   const cleanFileName = sanitizeR2Path(params.fileName || `captura_${timestamp}.png`);
-
   const r2Key = `pilots/${cleanPilotName}_${params.pilotUid.slice(0, 6)}/${cleanFolderName}/${timestamp}_${cleanFileName}`;
-
-  const base64Data = params.imageData.replace(/^data:image\/\w+;base64,/, "");
-  const binaryString = atob(base64Data);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-
   const mimeType = params.mimeType || "image/jpeg";
+
+  // 1. Decodificar imagen de forma nativa ultra rápida
+  const bytes = await dataUrlToUint8Array(params.imageData);
+
+  // 2. Subida Directa desde el cliente (GitHub Pages / SPA / Web)
+  onProgressStep?.("Transfiriendo a Cloudflare R2...");
+  const client = getDirectS3Client();
+
   const command = new PutObjectCommand({
     Bucket: DIRECT_R2_CONFIG.bucketName,
     Key: r2Key,
@@ -139,8 +138,22 @@ export async function uploadImageToR2(params: UploadImageParams): Promise<{
     ContentType: mimeType,
   });
 
+  // Timeout de seguridad de 45 segundos para que nunca se quede colgado indefinidamente
+  const uploadPromise = client.send(command);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(
+      () =>
+        reject(
+          new Error(
+            "Tiempo de espera agotado al subir a Cloudflare R2. Por favor verifica tu conexión a internet e intenta nuevamente."
+          )
+        ),
+      45000
+    )
+  );
+
   try {
-    await client.send(command);
+    await Promise.race([uploadPromise, timeoutPromise]);
   } catch (err: any) {
     console.error("Error en subida directa S3/R2:", err);
     if (

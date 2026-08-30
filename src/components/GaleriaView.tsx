@@ -47,7 +47,17 @@ import {
   RefreshCw,
   Copy,
   Check,
+  Images,
 } from "lucide-react";
+
+interface UploadFileItem {
+  id: string;
+  dataUrl: string;
+  fileName: string;
+  mimeType: string;
+  title: string;
+  size: number;
+}
 
 interface GaleriaViewProps {
   currentUser: UserProfile;
@@ -87,10 +97,10 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
   const [uploadDescription, setUploadDescription] = useState("");
   const [uploadFolderId, setUploadFolderId] = useState<string>("");
   const [uploadTags, setUploadTags] = useState("");
-  const [uploadImageData, setUploadImageData] = useState<string | null>(null);
-  const [uploadFileName, setUploadFileName] = useState("");
-  const [uploadMimeType, setUploadMimeType] = useState("image/png");
+  const [uploadItems, setUploadItems] = useState<UploadFileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgressStatus, setUploadProgressStatus] = useState("Subiendo a Cloudflare R2...");
+  const [uploadProgressCount, setUploadProgressCount] = useState<{ current: number; total: number } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [hasCopiedCors, setHasCopiedCors] = useState(false);
@@ -236,43 +246,76 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (items) {
+        const imageBlobs: { file: Blob; name: string }[] = [];
         for (let i = 0; i < items.length; i++) {
           if (items[i].type.indexOf("image") !== -1) {
             const blob = items[i].getAsFile();
             if (blob) {
-              e.preventDefault();
-              processImageFile(blob, `captura_${Date.now()}.png`);
-              setIsUploadModalOpen(true);
-              break;
+              imageBlobs.push({
+                file: blob,
+                name: `captura_portapapeles_${Date.now()}_${i + 1}.png`,
+              });
             }
           }
+        }
+        if (imageBlobs.length > 0) {
+          e.preventDefault();
+          processImageFiles(imageBlobs.map((b) => b.file));
+          setIsUploadModalOpen(true);
         }
       }
     };
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
-  }, []);
+  }, [uploadItems]);
 
-  const processImageFile = (file: Blob, defaultName?: string) => {
-    if (!file.type.startsWith("image/")) {
-      setUploadError("Por favor selecciona o pega un formato de imagen válido (PNG, JPG, WEBP).");
+  const processImageFiles = async (files: (File | Blob)[]) => {
+    const validFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (validFiles.length === 0) {
+      setUploadError("Por favor selecciona o pega formatos de imagen válidos (PNG, JPG, WEBP).");
       return;
     }
     setUploadError(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      if (result) {
-        setUploadImageData(result);
-        setUploadMimeType(file.type || "image/png");
-        const name = (file as File).name || defaultName || `captura_${Date.now()}.png`;
-        setUploadFileName(name);
-        if (!uploadTitle) {
-          setUploadTitle(name.replace(/\.[^/.]+$/, "").replace(/[_ -]+/g, " "));
-        }
+
+    const newItems: UploadFileItem[] = [];
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(file);
+      });
+
+      const fileName = (file as File).name || `captura_${Date.now()}_${i + 1}.png`;
+      const cleanTitle = fileName.replace(/\.[^/.]+$/, "").replace(/[_ -]+/g, " ");
+
+      newItems.push({
+        id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        dataUrl,
+        fileName,
+        mimeType: file.type || "image/png",
+        title: cleanTitle,
+        size: file.size || dataUrl.length,
+      });
+    }
+
+    setUploadItems((prev) => {
+      const combined = [...prev, ...newItems];
+      if (!uploadTitle && combined.length === 1) {
+        setUploadTitle(combined[0].title);
       }
-    };
-    reader.readAsDataURL(file);
+      return combined;
+    });
+  };
+
+  const handleRemoveUploadItem = (id: string) => {
+    setUploadItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleUpdateItemTitle = (id: string, newTitle: string) => {
+    setUploadItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, title: newTitle } : item))
+    );
   };
 
   // Crear Carpeta
@@ -324,77 +367,91 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
     }
   };
 
-  // Subir Imagen a Cloudflare R2 y Guardar en Firestore
+  // Subir Imágenes a Cloudflare R2 y Guardar en Firestore (Lote o Individual)
   const handleUploadImage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadImageData) {
-      setUploadError("Por favor carga o pega una imagen primero.");
-      return;
-    }
-    if (!uploadTitle.trim()) {
-      setUploadError("Por favor indica un título para la imagen.");
+    if (uploadItems.length === 0) {
+      setUploadError("Por favor carga o pega al menos una imagen primero.");
       return;
     }
 
     setIsUploading(true);
     setUploadError(null);
+    setUploadProgressCount({ current: 0, total: uploadItems.length });
 
     try {
       const selectedFolder = folders.find((f) => f.id === uploadFolderId);
       const folderName = selectedFolder ? selectedFolder.name : "general";
-
-      // 1. Subida a Cloudflare R2 vía Backend
-      const r2Result = await uploadImageToR2({
-        imageData: uploadImageData,
-        fileName: uploadFileName || `captura_${Date.now()}.png`,
-        pilotUid: currentUser.uid,
-        pilotName: currentUser.displayName || currentUser.email || "Piloto",
-        pilotPhoto: currentUser.photoURL,
-        folderId: uploadFolderId || undefined,
-        folderName: folderName,
-        title: uploadTitle.trim(),
-        description: uploadDescription.trim(),
-        mimeType: uploadMimeType,
-      });
-
-      // 2. Guardar Registro en Firestore
       const tagsArray = uploadTags
         .split(",")
         .map((t) => t.trim().toLowerCase())
         .filter((t) => t.length > 0);
 
-      await addDoc(collection(db, "gallery_images"), {
-        title: uploadTitle.trim(),
-        description: uploadDescription.trim(),
-        url: r2Result.url,
-        r2Key: r2Result.r2Key,
-        folderId: uploadFolderId || "",
-        folderName: selectedFolder ? selectedFolder.name : "Raíz / General",
-        pilotUid: currentUser.uid,
-        pilotName: currentUser.displayName || currentUser.email || "Piloto ALR",
-        pilotPhoto: currentUser.photoURL || "",
-        fileSize: r2Result.fileSize,
-        mimeType: r2Result.mimeType,
-        tags: tagsArray,
-        createdAt: new Date().toISOString(),
-      });
+      const total = uploadItems.length;
 
-      setUploadSuccess("¡Imagen subida y respaldada en Cloudflare R2 con éxito!");
+      for (let i = 0; i < total; i++) {
+        const item = uploadItems[i];
+        const itemTitle = total === 1 ? uploadTitle.trim() || item.title : item.title || `Foto ${i + 1}`;
+        setUploadProgressCount({ current: i + 1, total });
+        setUploadProgressStatus(`Subiendo imagen ${i + 1} de ${total}: "${itemTitle}"...`);
+
+        // 1. Subida a Cloudflare R2 vía S3 nativo
+        const r2Result = await uploadImageToR2(
+          {
+            imageData: item.dataUrl,
+            fileName: item.fileName,
+            pilotUid: currentUser.uid,
+            pilotName: currentUser.displayName || currentUser.email || "Piloto",
+            pilotPhoto: currentUser.photoURL,
+            folderId: uploadFolderId || undefined,
+            folderName: folderName,
+            title: itemTitle,
+            description: uploadDescription.trim(),
+            mimeType: item.mimeType,
+          },
+          (step) => setUploadProgressStatus(`[${i + 1}/${total}] ${step}`)
+        );
+
+        // 2. Guardar Registro en Firestore
+        await addDoc(collection(db, "gallery_images"), {
+          title: itemTitle,
+          description: uploadDescription.trim(),
+          url: r2Result.url,
+          r2Key: r2Result.r2Key,
+          folderId: uploadFolderId || "",
+          folderName: selectedFolder ? selectedFolder.name : "Raíz / General",
+          pilotUid: currentUser.uid,
+          pilotName: currentUser.displayName || currentUser.email || "Piloto ALR",
+          pilotPhoto: currentUser.photoURL || "",
+          fileSize: r2Result.fileSize,
+          mimeType: r2Result.mimeType,
+          tags: tagsArray,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setUploadSuccess(
+        total > 1
+          ? `¡${total} imágenes subidas y respaldadas en Cloudflare R2 con éxito!`
+          : "¡Imagen subida y respaldada en Cloudflare R2 con éxito!"
+      );
+
       setTimeout(() => {
         setUploadSuccess(null);
         setIsUploadModalOpen(false);
         // Reset form
-        setUploadImageData(null);
-        setUploadFileName("");
+        setUploadItems([]);
         setUploadTitle("");
         setUploadDescription("");
         setUploadTags("");
-      }, 1200);
+        setUploadProgressCount(null);
+      }, 1500);
     } catch (err: any) {
-      console.error("Error al subir imagen:", err);
-      setUploadError(err.message || "Error al subir la imagen.");
+      console.error("Error al subir lote de imágenes:", err);
+      setUploadError(err.message || "Error al subir las imágenes.");
     } finally {
       setIsUploading(false);
+      setUploadProgressCount(null);
     }
   };
 
@@ -901,52 +958,92 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
             )}
 
             <form onSubmit={handleUploadImage} className="space-y-4 font-mono text-xs">
-              {/* ZONA DE CARGA / PEGAR IMAGEN */}
+              {/* ZONA DE CARGA / PEGAR IMÁGENES */}
               <div>
-                <label className="block text-stone-400 mb-1.5 uppercase text-[10px] font-bold">
-                  Imagen * (Cargar archivo o pegar con Ctrl + V)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-stone-400 uppercase text-[10px] font-bold">
+                    Imágenes * {uploadItems.length > 0 && `(${uploadItems.length} seleccionada${uploadItems.length > 1 ? "s" : ""})`}
+                  </label>
+                  {uploadItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Agregar más fotos</span>
+                    </button>
+                  )}
+                </div>
 
                 <input
                   type="file"
                   ref={fileInputRef}
                   accept="image/*"
+                  multiple
                   onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      processImageFile(e.target.files[0]);
+                    if (e.target.files && e.target.files.length > 0) {
+                      processImageFiles(Array.from(e.target.files));
+                      e.target.value = "";
                     }
                   }}
                   className="hidden"
                 />
 
-                {uploadImageData ? (
-                  <div className="relative rounded-xl border border-cyan-500/50 bg-black/60 overflow-hidden group">
-                    <img
-                      src={uploadImageData}
-                      alt="Vista previa de subida"
-                      className="max-h-56 w-full object-contain mx-auto"
-                    />
-                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="bg-black/80 hover:bg-zinc-800 text-cyan-300 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-zinc-700 transition-colors"
-                      >
-                        Cambiar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUploadImageData(null);
-                          setUploadFileName("");
-                        }}
-                        className="bg-red-950/80 hover:bg-red-900 text-red-300 p-1 rounded-lg border border-red-800 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                {uploadItems.length > 0 ? (
+                  <div className="space-y-2">
+                    {/* Lista / Carrusel de Imágenes seleccionadas */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-64 overflow-y-auto p-2 bg-black/60 rounded-xl border border-stone-800 custom-scrollbar">
+                      {uploadItems.map((item, index) => (
+                        <div
+                          key={item.id}
+                          className="relative rounded-lg border border-stone-700 bg-stone-900 overflow-hidden group flex flex-col"
+                        >
+                          <div className="relative aspect-video bg-black/80 flex items-center justify-center overflow-hidden">
+                            <img
+                              src={item.dataUrl}
+                              alt={item.fileName}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-[9px] font-bold text-cyan-400 border border-stone-800">
+                              #{index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUploadItem(item.id)}
+                              className="absolute top-1 right-1 bg-red-950/90 hover:bg-red-900 text-red-300 p-1 rounded-md border border-red-800 transition-colors opacity-90 group-hover:opacity-100"
+                              title="Quitar esta foto"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          <div className="p-1.5 bg-stone-950 space-y-1">
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => handleUpdateItemTitle(item.id, e.target.value)}
+                              placeholder={`Título foto ${index + 1}`}
+                              className="w-full bg-stone-900 border border-stone-800 focus:border-cyan-500 rounded px-1.5 py-1 text-[10px] text-white outline-none"
+                              title="Título individual para esta foto"
+                            />
+                            <p className="text-[9px] text-stone-500 truncate" title={item.fileName}>
+                              {item.fileName}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="p-2 bg-black/80 text-[10px] text-stone-400 truncate border-t border-stone-800">
-                      Archivo: <span className="text-white font-bold">{uploadFileName}</span>
+
+                    <div className="flex items-center justify-between text-[11px] text-stone-400 px-1 font-mono">
+                      <span>Puedes seguir pegando con <strong className="text-emerald-400">Ctrl + V</strong> o arrastrar más archivos.</span>
+                      <button
+                        type="button"
+                        onClick={() => setUploadItems([])}
+                        className="text-red-400 hover:text-red-300 text-[10px] underline"
+                      >
+                        Limpiar todo
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -958,20 +1055,24 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                         try {
                           if (navigator.clipboard && navigator.clipboard.read) {
                             const items = await navigator.clipboard.read();
+                            const filesToProcess: Blob[] = [];
                             for (const item of items) {
                               for (const type of item.types) {
                                 if (type.startsWith("image/")) {
                                   const blob = await item.getType(type);
-                                  processImageFile(blob, `captura_portapapeles_${Date.now()}.png`);
-                                  return;
+                                  filesToProcess.push(blob);
                                 }
                               }
+                            }
+                            if (filesToProcess.length > 0) {
+                              processImageFiles(filesToProcess);
+                              return;
                             }
                             setUploadError("No se detectó imagen en el portapapeles. Haz tu captura (Win+Shift+S) y pulsa Ctrl + V.");
                           } else {
                             setUploadError("Presiona directamente Ctrl + V en tu teclado para pegar.");
                           }
-                        } catch (err) {
+                        } catch {
                           setUploadError("Presiona directamente las teclas Ctrl + V en tu teclado para pegar la captura.");
                         }
                       }}
@@ -981,30 +1082,30 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
                         <ClipboardPaste className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="block font-bold text-emerald-300 text-xs">Pegar Captura</span>
+                        <span className="block font-bold text-emerald-300 text-xs">Pegar Captura(s)</span>
                         <span className="text-[10px] text-stone-500 font-mono">Win + Shift + S o Ctrl + V</span>
                       </div>
                     </button>
 
-                    {/* Botón Examinar Archivo */}
+                    {/* Botón Examinar Archivos Múltiples */}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       className="p-4 bg-gradient-to-br from-[#18181b] to-cyan-950/20 border border-dashed border-cyan-500/40 hover:border-cyan-400 rounded-xl flex flex-col items-center justify-center gap-2 text-center transition-all cursor-pointer group"
                     >
                       <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Upload className="w-4 h-4" />
+                        <Images className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="block font-bold text-cyan-300 text-xs">Seleccionar Archivo</span>
-                        <span className="text-[10px] text-stone-500 font-mono">PNG, JPG, WEBP</span>
+                        <span className="block font-bold text-cyan-300 text-xs">Seleccionar Archivo(s)</span>
+                        <span className="text-[10px] text-stone-500 font-mono">Una o varias fotos (PNG, JPG, WEBP)</span>
                       </div>
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* METADATOS: CARPETA & TÍTULO */}
+              {/* METADATOS: CARPETA & TÍTULO (O TÍTULO PRINCIPAL) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-stone-400 mb-1 uppercase text-[10px] font-bold">
@@ -1026,14 +1127,13 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
 
                 <div>
                   <label className="block text-stone-400 mb-1 uppercase text-[10px] font-bold">
-                    Título de la Foto *
+                    {uploadItems.length > 1 ? "Título Base o Serie" : "Título de la Foto *"}
                   </label>
                   <input
                     type="text"
-                    required
                     value={uploadTitle}
                     onChange={(e) => setUploadTitle(e.target.value)}
-                    placeholder="Ej: Telemetría Vuelta 1:47.3"
+                    placeholder={uploadItems.length > 1 ? "Ej: Test Le Mans Stint 1" : "Ej: Telemetría Vuelta 1:47.3"}
                     className="w-full bg-[#18181b] border border-stone-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-white outline-none"
                   />
                 </div>
@@ -1042,7 +1142,7 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
               {/* DESCRIPCIÓN & TAGS */}
               <div>
                 <label className="block text-stone-400 mb-1 uppercase text-[10px] font-bold">
-                  Descripción o Notas Técnicas (Opcional)
+                  Descripción o Notas Técnicas (Opcional para todas las fotos)
                 </label>
                 <textarea
                   rows={2}
@@ -1067,31 +1167,50 @@ export const GaleriaView: React.FC<GaleriaViewProps> = ({
               </div>
 
               {/* BOTONES DE ACCIÓN */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-850">
-                <button
-                  type="button"
-                  onClick={() => setIsUploadModalOpen(false)}
-                  className="px-3.5 py-2 rounded-xl text-stone-400 hover:text-white border border-stone-800 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUploading || !uploadImageData || !uploadTitle.trim()}
-                  className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-black font-black rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-cyan-500/20"
-                >
-                  {isUploading ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Subiendo a Cloudflare R2...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
-                      <span>Guardar en Cloudflare R2</span>
-                    </>
-                  )}
-                </button>
+              <div className="flex items-center justify-between pt-3 border-t border-stone-850">
+                <span className="text-[11px] text-stone-400 font-mono">
+                  {uploadItems.length > 0
+                    ? `${uploadItems.length} foto${uploadItems.length > 1 ? "s" : ""} lista${uploadItems.length > 1 ? "s" : ""} para subir`
+                    : "No hay fotos seleccionadas"}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUploadModalOpen(false);
+                      setUploadItems([]);
+                    }}
+                    className="px-3.5 py-2 rounded-xl text-stone-400 hover:text-white border border-stone-800 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUploading || uploadItems.length === 0}
+                    className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-black font-black rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-cyan-500/20"
+                  >
+                    {isUploading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>
+                          {uploadProgressCount
+                            ? `[${uploadProgressCount.current}/${uploadProgressCount.total}] Subiendo...`
+                            : uploadProgressStatus}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>
+                          {uploadItems.length > 1
+                            ? `Subir ${uploadItems.length} Fotos a Cloudflare R2`
+                            : "Guardar en Cloudflare R2"}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
